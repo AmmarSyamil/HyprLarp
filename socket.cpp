@@ -47,7 +47,6 @@ int SocketConnection(std::vector<std::string>& data) {
     char buffer[1024];
 
     // Define data
-    std::string data;
     int n;
     
     // Define varialbe
@@ -73,8 +72,7 @@ int SocketConnection(std::vector<std::string>& data) {
             
             std::string line = dataBuffer.substr(0, pos);
             data.push_back(line);
-            
-
+            dataBuffer.erase(0, pos+1);
         }
 
     }
@@ -84,23 +82,17 @@ int SocketConnection(std::vector<std::string>& data) {
     }
 }
 
-
 // Testing grounds
 
 int main() {
     std::vector<std::string> data{};
     int test = SocketConnection(data);
 
-    // std::ofstream MyFile("test.txt");
-    while (test > 0) {
-        std::cout << data << std::endl;
-        // MyFile << data;
-    
-    }
-    if (test < 0) {
-        std::cerr << "Error somewhere idk dont ask me" << std::endl;
-    }
-    // MyFile.close();
+    std::ofstream file("test.txt");
 
-    
+    for (const auto& line : data) {
+        file << line << '\n';
+    }
+
+    file.close();  
 }
