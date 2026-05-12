@@ -7,11 +7,14 @@
 
 #include <string> // check letter to detect activewindow2
 
+#include <mutex> // mutex for better multithreading
+
 int main() {
 
     // Setup data and threading
     std::vector<std::string> data{};
-    std::thread socketThread(SocketConnection, std::ref(data));
+    std::mutex dataMutex;
+    std::thread socketThread(SocketConnection, std::ref(data), std::ref(dataMutex));
 
     std::string temp{};
     while (true) {
@@ -23,6 +26,9 @@ int main() {
     
             for (i = 0; i <= 1; i--)
             { 
+
+                dataMutex.lock();
+
                 if (temp.starts_with("activewindow2")) {
                     std::cout << "theres actice windows" << std::endl;
         
@@ -30,6 +36,8 @@ int main() {
                 } else {
                     data.erase(data.begin() + i);
                 }
+
+                dataMutex.unlock();
             }
             
     

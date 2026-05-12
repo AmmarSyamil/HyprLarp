@@ -8,11 +8,14 @@
 #include <vector>
 #include <list>
 
-//making file
+//Making file
 #include <fstream>
 
+#include <mutex> // Mutex implementation.
 
-int SocketConnection(std::vector<std::string>& data) {
+
+
+int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -67,19 +70,25 @@ int SocketConnection(std::vector<std::string>& data) {
         size_t pos;
 
         // Test file
-        std::ofstream test_file("test.txt", std::ios::app);
+        // std::ofstream test_file("test.txt", std::ios::app);
         
         // get each line of it and save it as a list of the string eacch line.
-        while ((pos = dataBuffer.find('\n')) != std::string::npos) {          
+        while ((pos = dataBuffer.find('\n')) != std::string::npos) {    
+            
+            //Setup and lock mutex
+            // std::mutex socketDataMutex;
+            dataMutex.lock();
             
             std::string line = dataBuffer.substr(0, pos);
             data.push_back(line);
             
             // Test file implementation
-            test_file << line << '\n';
-            test_file.flush();
+            // test_file << line << '\n';
+            // test_file.flush();
 
             dataBuffer.erase(0, pos+1);
+
+            dataMutex.unlock(); //Unlock mutex
         }
     }
 

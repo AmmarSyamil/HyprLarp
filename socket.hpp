@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <vector>
+#include <mutex>
 
 
-int SocketConnection(std::vector<std::string>& data);
+int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex)
+;
