@@ -1,6 +1,7 @@
 #pragma once
+
 #include <iostream>
+#include <vector>
 
 
-
-int SocketConnection(std::string& data);
+int SocketConnection(std::vector<std::string>& data);

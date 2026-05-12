@@ -66,33 +66,38 @@ int SocketConnection(std::vector<std::string>& data) {
 
         size_t pos;
 
+        // Test file
+        std::ofstream test_file("test.txt", std::ios::app);
         
         // get each line of it and save it as a list of the string eacch line.
         while ((pos = dataBuffer.find('\n')) != std::string::npos) {          
             
             std::string line = dataBuffer.substr(0, pos);
             data.push_back(line);
+            
+            // Test file implementation
+            test_file << line << '\n';
+            test_file.flush();
+
             dataBuffer.erase(0, pos+1);
         }
-
     }
 
     if (n==0) {
         std::cerr << "error" << std::endl;
     }
+    
+    if (!dataBuffer.empty()) {
+        data.push_back(dataBuffer);
+    }
+
+    return 1;
 }
 
 // Testing grounds
+// int main() {
+//     std::vector<std::string> data{};
+//     int test = SocketConnection(data);
 
-int main() {
-    std::vector<std::string> data{};
-    int test = SocketConnection(data);
-
-    std::ofstream file("test.txt");
-
-    for (const auto& line : data) {
-        file << line << '\n';
-    }
-
-    file.close();  
-}
+//     return 1;
+// }
