@@ -13,9 +13,10 @@
 
 #include <mutex> // Mutex implementation.
 
+#include <string> // check letter to detect activewindow2
 
 
-int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
+int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -52,8 +53,7 @@ int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
     // Define data
     int n;
     
-    // Define varialbe
-    // std::vector<std::string> MainData{};
+    // Define varialbel
     std::string dataBuffer{};
 
     // Read socket
@@ -61,7 +61,7 @@ int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
         // int n = read(sock, buffer, sizeof(buffer)-1);
         
         buffer[n] = '\0';
-        std::cout << "RECV: " << buffer << std::flush;
+        // std::cout << "RECV: " << buffer << std::flush;
 
         
         // data = buffer;
@@ -70,7 +70,7 @@ int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
         size_t pos;
 
         // Test file
-        // std::ofstream test_file("test.txt", std::ios::app);
+        std::ofstream test_file("test.txt", std::ios::app);
         
         // get each line of it and save it as a list of the string eacch line.
         while ((pos = dataBuffer.find('\n')) != std::string::npos) {    
@@ -80,11 +80,56 @@ int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
             dataMutex.lock();
             
             std::string line = dataBuffer.substr(0, pos);
-            data.push_back(line);
             
-            // Test file implementation
-            // test_file << line << '\n';
-            // test_file.flush();
+            // Operation to filer out non "activewindow2"
+            
+            if (line.starts_with("activewindowv2")) {
+                std::cout << "theres active windowv2" << std::endl;
+                
+                // Put the line in the data
+                data.push_back(line);
+
+                // Test file implementation
+                test_file << line << '\n';
+                test_file.flush();
+            } 
+            
+
+
+    std::string temp{};
+    while (true) {
+        while (data.size() > 0) {
+    
+            size_t i = data.size();
+            
+            temp = data.at(data.size()-1);
+            
+            // Operation to filer out non "activewindow2"
+            for (i = 0; i <= 1; i--)
+            { 
+
+                dataMutex.lock();
+
+                if (temp.starts_with("activewindowv2")) {
+                    std::cout << "theres actice windows" << std::endl;
+                } else {
+                    data.erase(data.begin() + i);
+                }
+
+                dataMutex.unlock();
+            }
+            
+    
+            // std::cout <<  "test " << data << std::endl;
+
+            // test debug cuz idk why it isnt working properly.
+            for (const auto& str : data) {
+                std::cout << str << " ";
+            }
+        } 
+
+        std::cout << data.size() << std::endl;
+    }
 
             dataBuffer.erase(0, pos+1);
 
@@ -104,9 +149,12 @@ int SocketConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
 }
 
 // Testing grounds
-// int main() {
-//     std::vector<std::string> data{};
-//     int test = SocketConnection(data);
+int main() {
+    std::vector<std::string> data{};
+    std::mutex dataMutex;
 
-//     return 1;
-// }
+
+    int test = SocketReceiveConnection(data, dataMutex);
+
+    return 1;
+}
