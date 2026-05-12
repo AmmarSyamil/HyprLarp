@@ -5,7 +5,14 @@
 #include <cstring>
 #include <iostream>
 
-int main() {
+#include <vector>
+#include <list>
+
+//making file
+#include <fstream>
+
+
+int SocketConnection(std::vector<std::string>& data) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -36,26 +43,64 @@ int main() {
         std::cout << "Connection succesfull!!";
     };
 
-    // Setup buffer with size 4096 bytes size (hopefully its enough)
-    char buffer[4096];
+    // Setup buffer with size 1024 bytes size (hopefully its enough)
+    char buffer[1024];
 
     // Define data
     std::string data;
+    int n;
+    
+    // Define varialbe
+    // std::vector<std::string> MainData{};
+    std::string dataBuffer{};
 
     // Read socket
-    while (true) {
-        int n = read(sock, buffer, sizeof(buffer)-1);
-
-
+    while ((n = read(sock, buffer, sizeof(buffer)-1)) > 0) {
+        // int n = read(sock, buffer, sizeof(buffer)-1);
+        
         buffer[n] = '\0';
         std::cout << "RECV: " << buffer << std::flush;
 
-        // if (n>0) {
-        //     data.append(buffer, n);
+        
+        // data = buffer;
+        dataBuffer.append(buffer, n);
 
-        //     // Output resilt
-        //     std::cout << std::string(buffer, n);
-        // }
+        size_t pos;
+
+        
+        // get each line of it and save it as a list of the string eacch line.
+        while ((pos = dataBuffer.find('\n')) != std::string::npos) {          
+            
+            std::string line = dataBuffer.substr(0, pos);
+            data.push_back(line);
+            
+
+        }
+
     }
+
+    if (n==0) {
+        std::cerr << "error" << std::endl;
+    }
+}
+
+
+// Testing grounds
+
+int main() {
+    std::vector<std::string> data{};
+    int test = SocketConnection(data);
+
+    // std::ofstream MyFile("test.txt");
+    while (test > 0) {
+        std::cout << data << std::endl;
+        // MyFile << data;
+    
+    }
+    if (test < 0) {
+        std::cerr << "Error somewhere idk dont ask me" << std::endl;
+    }
+    // MyFile.close();
+
     
 }
