@@ -1,20 +1,14 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <unistd.h>
 #include <sys/un.h>
+#include <unistd.h>
 #include <cstring>
 #include <iostream>
-
+#include <fstream>
+#include <mutex>
+#include <string>
 #include <vector>
 #include <list>
-
-//Making file
-#include <fstream>
-
-#include <mutex> // Mutex implementation.
-
-#include <string> // check letter to detect activewindow2
-
 
 int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -24,15 +18,13 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
         return 1;
     }
 
-    // Get socket path 
-    // $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock  
+    // Get socket path
+    // $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock
     std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket2.sock";
-
 
     // Make and setup the sockaddr_un struct
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
-
     strcpy(addr.sun_path, path.c_str());
 
     // Connect the socket
@@ -45,25 +37,22 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
         return 1;
     } else {
         std::cout << "Connection succesfull!!";
-    };
+    }
 
     // Setup buffer with size 1024 bytes size (hopefully its enough)
     char buffer[1024];
 
     // Define data
     int n;
-    
+
     // Define varialbel
     std::string dataBuffer{};
 
     // Read socket
-    while ((n = read(sock, buffer, sizeof(buffer)-1)) > 0) {
-        // int n = read(sock, buffer, sizeof(buffer)-1);
-        
+    while ((n = read(sock, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[n] = '\0';
         // std::cout << "RECV: " << buffer << std::flush;
 
-        
         // data = buffer;
         dataBuffer.append(buffer, n);
 
@@ -71,76 +60,37 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
 
         // Test file
         std::ofstream test_file("test.txt", std::ios::app);
-        
+
         // get each line of it and save it as a list of the string eacch line.
-        while ((pos = dataBuffer.find('\n')) != std::string::npos) {    
-            
-            //Setup and lock mutex
+        while ((pos = dataBuffer.find('\n')) != std::string::npos) {
+            // Setup and lock mutex
             // std::mutex socketDataMutex;
             dataMutex.lock();
-            
+
             std::string line = dataBuffer.substr(0, pos);
-            
-            // Operation to filer out non "activewindow2"
-            
+
+            // Operation to filer out non "activewindowv2"
             if (line.starts_with("activewindowv2")) {
                 std::cout << "theres active windowv2" << std::endl;
-                
+
                 // Put the line in the data
                 data.push_back(line);
 
                 // Test file implementation
                 test_file << line << '\n';
                 test_file.flush();
-            } 
-            
-
-
-    std::string temp{};
-    while (true) {
-        while (data.size() > 0) {
-    
-            size_t i = data.size();
-            
-            temp = data.at(data.size()-1);
-            
-            // Operation to filer out non "activewindow2"
-            for (i = 0; i <= 1; i--)
-            { 
-
-                dataMutex.lock();
-
-                if (temp.starts_with("activewindowv2")) {
-                    std::cout << "theres actice windows" << std::endl;
-                } else {
-                    data.erase(data.begin() + i);
-                }
-
-                dataMutex.unlock();
             }
-            
-    
-            // std::cout <<  "test " << data << std::endl;
-
-            // test debug cuz idk why it isnt working properly.
-            for (const auto& str : data) {
-                std::cout << str << " ";
-            }
-        } 
-
-        std::cout << data.size() << std::endl;
-    }
 
             dataBuffer.erase(0, pos+1);
 
-            dataMutex.unlock(); //Unlock mutex
+            dataMutex.unlock(); // Unlock mutex
         }
     }
 
-    if (n==0) {
+    if (n == 0) {
         std::cerr << "error" << std::endl;
     }
-    
+
     if (!dataBuffer.empty()) {
         data.push_back(dataBuffer);
     }
@@ -152,7 +102,6 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
 int main() {
     std::vector<std::string> data{};
     std::mutex dataMutex;
-
 
     int test = SocketReceiveConnection(data, dataMutex);
 

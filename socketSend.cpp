@@ -9,7 +9,32 @@
 
 #include <mutex>
 
-int main() {
+#include <nlohmann/json.hpp> 
+
+
+int query(std::vector<nlohmann::json> data, std::string address, std::vector<std::vector<int>>& output) {
+
+    nlohmann::json jsonData{};
+
+    for (auto& jsonData: data) {
+        if (jsonData["address"] == address) {
+            std::cout << jsonData["title"] << std::endl;
+
+            output = {jsonData["at"], jsonData["size"]};
+
+            //outputing for test
+            std::cout << "Position: " << output[0][0] << ", " << output[0][1] << std::endl;
+
+            std::cout << "Size: " << output[1][0] << ", " << output[1][1] << std::endl;
+        }
+    }
+    
+    return 1;
+}
+
+
+
+int main(std::string address) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -41,7 +66,7 @@ int main() {
     
     
     // Data to sends
-    std::string dataSend = "j/activewindow";
+    std::string dataSend = "j/clients";
 
     // sends socket data
     int sendsConnection = send(sock, dataSend.c_str(), sizeof(addr), sizeof(dataSend));
@@ -68,4 +93,15 @@ int main() {
     } else {
         std::cerr << "Data received error" << std::endl;
     }
+
+    // Parse data
+    nlohmann::json parsedData = nlohmann::json::parse(buffer);
+
+    // Setup output data
+    std::vector<std::vector<int>> outputData;
+
+    // Check windows json
+    query(parsedData, address, outputData);
+
+    return 1;
 }
