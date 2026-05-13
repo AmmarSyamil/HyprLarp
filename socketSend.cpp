@@ -34,7 +34,7 @@ int query(std::vector<nlohmann::json> data, std::string address, std::vector<std
 
 
 
-int main(std::string address) {
+int SocketSendConnection(std::string address, std::mutex& dataMutex) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -100,8 +100,23 @@ int main(std::string address) {
     // Setup output data
     std::vector<std::vector<int>> outputData;
 
+    dataMutex.lock();
+
     // Check windows json
     query(parsedData, address, outputData);
+
+    dataMutex.unlock();
+
+    return 1;
+}
+
+int main() {
+    std::string address{};
+    std::mutex dataMutex;
+
+    address = "0x555aa9b36530";
+
+    int test = SocketSendConnection(address, dataMutex);
 
     return 1;
 }

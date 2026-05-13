@@ -35,7 +35,7 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
         std::cout << '\n';
         std::cout << path;
         return 1;
-    } else {
+    } else  {
         std::cout << "Connection succesfull!!";
     }
 
