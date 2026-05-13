@@ -1,3 +1,7 @@
+// This file contain the implementation of sending socket to Hyrpland IPC to find the propeties of the active window.
+
+
+
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -86,7 +90,7 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex) {
     // Check data received!!
     if (bytesReceived > 0) {
         std::cout << "Data received " << buffer << std::endl;
-
+        
     } else if (bytesReceived == 0) {
         std::cerr << "Data received failed" << std::endl;
 
@@ -96,6 +100,9 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex) {
 
     // Parse data
     nlohmann::json parsedData = nlohmann::json::parse(buffer);
+
+    // Debug
+    std::cout << '\n'<< parsedData << std::endl;
 
     // Setup output data
     std::vector<std::vector<int>> outputData;
@@ -120,3 +127,4 @@ int main() {
 
     return 1;
 }
+

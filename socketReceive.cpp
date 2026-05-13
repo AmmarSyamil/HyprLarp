@@ -1,3 +1,5 @@
+// This file contain the implementation of socket read of the .socket2.sock socket to read what window is changing to pint point which window is the active window.
+
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/un.h>
