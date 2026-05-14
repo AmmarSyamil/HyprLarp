@@ -6,24 +6,49 @@
 #include <iostream>
 #include <vector>
 
-// Function to convert epstein into cartesius coordinate
+// Function to convert [at, size] into cartesius coordinate [x, y]
 int ConvertPosFormat(std::vector<std::vector<int>>& DataInput) {
     // Convert to 4  point for each corver of the window by format of cartesius coordinate
 
     //Point of left up
+    std::vector<int> LeftUp{DataInput[0][0],DataInput[0][1]}; // (at x, at y)
+    std::vector<int> LeftDown{DataInput[0][0], DataInput[0][1] - DataInput[1][1]}; // (at x, at y - size y)
+    std::vector<int> RightUp{DataInput[0][0] + DataInput[1][0], DataInput[0][1]}; // (at x + size x, at y)
+    std::vector<int> RightDown{DataInput[0][0] + DataInput[1][0], DataInput[0][1] - DataInput[1][1]}; // (at x + size x, at y - size y)
 
-    std::vector<int> LeftUp = DataInput[1]; // (at x, at y)
-    std::vector<int> LeftDown{}; // (at x, at y - size y)
-    std::vector<int> RightUp{}; // (at x + size x, at y)
-    std::vector<int> RightDown{}; // (at x + size x, at y - size y)
+    std::cout << "LeftUp:    (" << LeftUp[0] << ", " << LeftUp[1] << ")" << std::endl;
+    std::cout << "LeftDown:  (" << LeftDown[0] << ", " << LeftDown[1] << ")" << std::endl;
+    std::cout << "RightUp:   (" << RightUp[0] << ", " << RightUp[1] << ")" << std::endl;
+    std::cout << "RightDown: (" << RightDown[0] << ", " << RightDown[1] << ")" << std::endl;
 
     return 1;
 }
 
 
-// Main function to show all of the layout of the windows
-int Main(std::vector<std::vector<int>>& DataInput) {
+// function to show all of the layout of the windows
+// Constraint : The vector vector is jsut one data, i need vector vector vector of data to work 
+// Which mean I need to convert all single data from socketsend.cpp into batcch in a workspaee tp cpnvert it up here
+
+int Layout(std::vector<std::vector<int>>& DataInput) {
     // DataInput form = [at, size] = [[x, y], [x, y]]
 
     return 1;
+}
+
+
+// Testing grounds
+int main() {
+    // We need to get testing daata dummy
+    std::cout << "test part pre populate test data" << std::endl;
+
+    std::vector<std::vector<int>> Data {
+        {81,31},
+        {1808, 1018}
+    };
+
+    std::cout << "Test part post populate test data" << std::endl;
+
+
+
+    int test = ConvertPosFormat(Data);
 }

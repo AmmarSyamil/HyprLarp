@@ -122,9 +122,16 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex) {
 
     dataMutex.unlock();
 
+    // Get data
+    if (!outputData.empty()) {
+        std::cout << "Position: " << outputData[0][0] << ", " << outputData[0][1] << std::endl;
+        std::cout << "Size: " << outputData[1][0] << ", " << outputData[1][1] << std::endl;
+    }
+
     return 1;
 }
 
+// Testing grounds
 int main() {
     std::string address{};
     std::mutex dataMutex;
