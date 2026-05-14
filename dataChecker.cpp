@@ -11,14 +11,14 @@
 
 
 
-int main() {
+// int main() {
 
-    // Setup data and threading
-    std::vector<std::string> data{};
-    std::mutex dataMutex;
-    std::thread socketThread(SocketReceiveConnection, std::ref(data), std::ref(dataMutex));
+//     // Setup data and threading
+//     std::vector<std::string> data{};
+//     std::mutex dataMutex;
+//     std::thread socketThread(SocketReceiveConnection, std::ref(data), std::ref(dataMutex));
 
 
 
-    return 1;
-}
+//     return 1;
+// }

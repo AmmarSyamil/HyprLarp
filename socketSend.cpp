@@ -1,20 +1,16 @@
 // This file contain the implementation of sending socket to Hyrpland IPC to find the propeties of the active window.
 
-
-
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <sys/un.h>
 #include <iostream>
-
 #include <vector>
 #include <list>
-
 #include <mutex>
-
 #include <nlohmann/json.hpp> 
 
+//Function that being called
 
 // Function to output the worsp
 int queryPosWindow(const nlohmann::json data, std::string address, std::vector<std::vector<int>>& output) {
@@ -83,11 +79,8 @@ int queryWorkspaceId(const nlohmann::json data, int address, int& output) {
     return 1;
 }
 
-
-
-
-// Using windows address to find window position and size
-int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData) {
+// Actually it called clients  { clients - lists all windows with their properties }
+int GetWindowsPropertiesData(nlohmann::json& outputData) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -129,7 +122,6 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector
         return 1;
     }
     
-
     //Data for the result
     std::string jsonData{};
 
@@ -139,140 +131,66 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector
 
     // Loop through the recv to get all data
     while (true) {
-        int bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
+        ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
 
         if (bytesReceived <= 0) {
             break;
         } 
 
-        jsonData.append(buffer, bytesReceived);
+        jsonData.append(buffer, static_cast<size_t>(bytesReceived));
 
-        if (bytesReceived < sizeof(buffer)) {
+        if (static_cast<size_t>(bytesReceived) < sizeof(buffer)) {
             break;
         }
     }
 
-
     // Parse data
-    nlohmann::json parsedData = nlohmann::json::parse(jsonData);
 
-    // Debug
-    // std::cout << '\n'<< parsedData << std::endl;
+    outputData = nlohmann::json::parse(jsonData);
 
-    // Setup output data
-    // std::vector<std::vector<int>> outputData;
+
+    return 1;
+}
+
+// Function that called other function
+
+// Using windows address to find window position and size
+int GetWindowPos(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt) {
+    
+    if (!data.has_value()) {
+        nlohmann::json jsonData;
+        GetWindowsPropertiesData(jsonData);
+        data = jsonData;
+    }
 
     dataMutex.lock();
 
     // Check windows json
-    queryPosWindow(parsedData, address, outputData);
+    queryPosWindow(data.value(), address, outputData);
 
     dataMutex.unlock();
-
-    // if (!outputData.empty()) {
-    //     std::cout << "Position: " << outputData[0][0] << ", " << outputData[0][1] << std::endl;
-    //     std::cout << "Size: " << outputData[1][0] << ", " << outputData[1][1] << std::endl;
-    // }
 
     return 1;
 }
 
 // Using PID address to find windows address
-int SocketSendConnection(int address, std::mutex& dataMutex, std::string& outputData) {
-    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data) {
 
-    if (sock < 0) {
-        std::cerr << "Socket sends (.sock) connection failed at making sock\n";
-        return 1;
+    if (!data.has_value()) {
+        nlohmann::json jsonData;
+        GetWindowsPropertiesData(jsonData);
+        data = jsonData;
     }
-
-    // Get socket path
-    // $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock  
-    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
-
-    // Make the sockaddr_un stuff
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-
-    strcpy(addr.sun_path, path.c_str());
-
-    //Connect to the socket
-    int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
-    if (connection < 0) {
-        std::cerr << "Socket connection failed at connecting for socket sends";
-        std::cout << connection << '\n' << path << std::endl;
-
-        return 1;
-    } else {
-        std::cout << "Connection succesfull (socket sends)";
-    }
-
-    
-    
-    // Data to sends
-    std::string dataSend = "j/clients";
-
-    // sends socket data
-    int sendsConnection = send(sock, dataSend.c_str(), dataSend.size(), 0);
-
-    if (sendsConnection < 0) {
-        std::cerr << "Error at sending data socket";
-        return 1;
-    }
-    
-
-    //Data for the result
-    std::string jsonData{};
-
-
-    // Setup buffer with size 4096 bytes size (it sure enough)
-    char buffer[4096]={0};
-
-    // Loop through the recv to get all data
-    while (true) {
-        int bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
-
-        if (bytesReceived <= 0) {
-            break;
-        } 
-
-        jsonData.append(buffer, bytesReceived);
-
-        if (bytesReceived < sizeof(buffer)) {
-            break;
-        }
-    }
-
-
-    // Parse data
-    nlohmann::json parsedData = nlohmann::json::parse(jsonData);
-
-    // Debug
-    // std::cout << '\n'<< parsedData << std::endl;
-
-    // Setup output data
-    // std::string outputData;
 
     dataMutex.lock();
 
     // Check windows json
-    queryWindowAddress(parsedData, address, outputData);
+    queryWindowAddress(data.value(), address, outputData);
 
     dataMutex.unlock();
 
-    // Get data
-    // if (!outputData.empty()) {
-    //     std::cout << "Position: " << outputData[0][0] << ", " << outputData[0][1] << std::endl;
-    //     std::cout << "Size: " << outputData[1][0] << ", " << outputData[1][1] << std::endl;
-    // }
-
     return 1;
 }
-
-
-
-
-
 
 // Testing grounds
 // int main() {
@@ -280,7 +198,6 @@ int SocketSendConnection(int address, std::mutex& dataMutex, std::string& output
 //     std::mutex dataMutex;
 //     std::string outputData{};
 //         std::vector<std::vector<int>> outputData2{};
-
         
 //         int pid = 1810;
         
@@ -298,7 +215,6 @@ int SocketSendConnection(int address, std::mutex& dataMutex, std::string& output
 //             std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
 //             std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
 //         }
-
 
 //     return 1;
 // }

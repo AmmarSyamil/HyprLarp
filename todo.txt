@@ -9,6 +9,7 @@ zamn idk where to start
 (v). i could use PID way instead of the window address thingy
 5. check only terminal //// kitty can run this program
 6. Make the socketsend more moduular. which is to split everyshit in the worlllld
+7. Performance improvement : cached the json window  thingy result data in the socketSend and like change the data if theres update in the current workspace, maybe use static local or someshit (search different implementation between static and global and local implementation type shiiii it sooo goood but like i think i should not do that in here yet)
 
 
 dumping stuffs

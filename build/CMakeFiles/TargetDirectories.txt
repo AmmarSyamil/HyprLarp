@@ -1,0 +1,3 @@
+/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir
+/home/sp/code/hyprlarp/build/CMakeFiles/edit_cache.dir
+/home/sp/code/hyprlarp/build/CMakeFiles/rebuild_cache.dir

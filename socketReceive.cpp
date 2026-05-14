@@ -102,11 +102,11 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
 }
 
 // Testing grounds
-int main() {
-    std::vector<std::string> data{};
-    std::mutex dataMutex;
+// int main() {
+//     std::vector<std::string> data{};
+//     std::mutex dataMutex;
 
-    int test = SocketReceiveConnection(data, dataMutex);
+//     int test = SocketReceiveConnection(data, dataMutex);
 
-    return 1;
-}
+//     return 1;
+// }

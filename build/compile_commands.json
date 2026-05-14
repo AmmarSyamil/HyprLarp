@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/main.cpp.o -c /home/sp/code/hyprlarp/main.cpp",
+  "file": "/home/sp/code/hyprlarp/main.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/main.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/socketSend.cpp.o -c /home/sp/code/hyprlarp/socketSend.cpp",
+  "file": "/home/sp/code/hyprlarp/socketSend.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/socketSend.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/socketReceive.cpp.o -c /home/sp/code/hyprlarp/socketReceive.cpp",
+  "file": "/home/sp/code/hyprlarp/socketReceive.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/socketReceive.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/dataChecker.cpp.o -c /home/sp/code/hyprlarp/dataChecker.cpp",
+  "file": "/home/sp/code/hyprlarp/dataChecker.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/dataChecker.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o -c /home/sp/code/hyprlarp/layoutWindow.cpp",
+  "file": "/home/sp/code/hyprlarp/layoutWindow.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o"
+}
+]

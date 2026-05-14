@@ -29,26 +29,27 @@ int ConvertPosFormat(std::vector<std::vector<int>>& DataInput) {
 // Constraint : The vector vector is jsut one data, i need vector vector vector of data to work 
 // Which mean I need to convert all single data from socketsend.cpp into batcch in a workspaee tp cpnvert it up here
 
-int Layout(std::vector<std::vector<int>>& DataInput) {
-    // DataInput form = [at, size] = [[x, y], [x, y]]
+// int Layout(std::vector<std::vector<int>>& DataInput) {
+//     // DataInput form = [at, size] = [[x, y], [x, y]]
 
-    return 1;
-}
+
+//     return 1;
+// }
 
 
 // Testing grounds
-int main() {
-    // We need to get testing daata dummy
-    std::cout << "test part pre populate test data" << std::endl;
+// int main() {
+//     // We need to get testing daata dummy
+//     std::cout << "test part pre populate test data" << std::endl;
 
-    std::vector<std::vector<int>> Data {
-        {81,31},
-        {1808, 1018}
-    };
+//     std::vector<std::vector<int>> Data {
+//         {81,31},
+//         {1808, 1018}
+//     };
 
-    std::cout << "Test part post populate test data" << std::endl;
+//     std::cout << "Test part post populate test data" << std::endl;
 
 
 
-    int test = ConvertPosFormat(Data);
-}
+//     int test = ConvertPosFormat(Data);
+// }
