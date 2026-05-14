@@ -13,52 +13,44 @@
 //Function that being called
 
 // Function to output the worsp
-int queryPosWindow(const nlohmann::json data, std::string address, std::vector<std::vector<int>>& output) {
-
-    // nlohmann::json jsonData{};
-
-    // std::cout << "query test" << std::endl;
+int queryPosWindow(const nlohmann::json data, const std::string& address, std::vector<std::vector<int>>& output) {
+    bool found = false;
 
     for (const auto& jsonData: data) {
         if (jsonData["address"] == address) {
-            std::cout << jsonData["title"] << std::endl;
-
+            std::cout << "Found window title: " << jsonData["title"] << std::endl;
             output = {jsonData["at"], jsonData["size"]};
-
-            //outputing for test for test
-            // std::cout << "Position: " << output[0][0] << ", " << output[0][1] << std::endl;
-
-            // std::cout << "Size: " << output[1][0] << ", " << output[1][1] << std::endl;
+            found = true;
+            break;
         }
     }
-    
-    return 1;
+
+    if (!found) {
+        std::cerr << "queryPosWindow: no matching address found for " << address << std::endl;
+    }
+
+    return found ? 0 : 1;
 }
 
 // Overload function of the query for the PID way of input
 // Output address of the window from input PID
 int queryWindowAddress(const nlohmann::json data, int address, std::string& output) {
-
-    // nlohmann::json jsonData{};
-
-    // std::cout << "query test" << std::endl;
+    bool found = false;
 
     for (const auto& jsonData: data) {
         if (jsonData["pid"] == address) {
-            std::cout << jsonData["title"] << std::endl;
-
-            output = jsonData["address"];
-            // output = {jsonData["at"], jsonData["size"]};
-
-
-            //outputing for test for test
-            // std::cout << "Position: " << output[0][0] << ", " << output[0][1] << std::endl;
-
-            // std::cout << "Size: " << output[1][0] << ", " << output[1][1] << std::endl;
+            std::cout << "Found PID window title: " << jsonData["title"] << std::endl;
+            output = jsonData["address"].get<std::string>();
+            found = true;
+            break;
         }
     }
-    
-    return 1;
+
+    if (!found) {
+        std::cerr << "queryWindowAddress: no matching pid found for " << address << std::endl;
+    }
+
+    return found ? 0 : 1;
 }
 
 // Function to output the Workspace ID from given window address
@@ -155,41 +147,37 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 // Function that called other function
 
 // Using windows address to find window position and size
-int GetWindowPos(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt) {
-    
+int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt) {
     if (!data.has_value()) {
         nlohmann::json jsonData;
-        GetWindowsPropertiesData(jsonData);
+        if (GetWindowsPropertiesData(jsonData) != 0) {
+            return 1;
+        }
         data = jsonData;
     }
 
     dataMutex.lock();
-
-    // Check windows json
-    queryPosWindow(data.value(), address, outputData);
-
+    int result = queryPosWindow(data.value(), address, outputData);
     dataMutex.unlock();
 
-    return 1;
+    return result;
 }
 
 // Using PID address to find windows address
-int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data) {
-
+int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
     if (!data.has_value()) {
         nlohmann::json jsonData;
-        GetWindowsPropertiesData(jsonData);
+        if (GetWindowsPropertiesData(jsonData) != 0) {
+            return 1;
+        }
         data = jsonData;
     }
 
     dataMutex.lock();
-
-    // Check windows json
-    queryWindowAddress(data.value(), address, outputData);
-
+    int result = queryWindowAddress(data.value(), address, outputData);
     dataMutex.unlock();
 
-    return 1;
+    return result;
 }
 
 // Testing grounds
