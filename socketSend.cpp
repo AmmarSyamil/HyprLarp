@@ -16,20 +16,22 @@
 #include <nlohmann/json.hpp> 
 
 
-int query(std::vector<nlohmann::json> data, std::string address, std::vector<std::vector<int>>& output) {
+int query(const nlohmann::json data, std::string address, std::vector<std::vector<int>>& output) {
 
-    nlohmann::json jsonData{};
+    // nlohmann::json jsonData{};
 
-    for (auto& jsonData: data) {
+    // std::cout << "query test" << std::endl;
+
+    for (const auto& jsonData: data) {
         if (jsonData["address"] == address) {
             std::cout << jsonData["title"] << std::endl;
 
             output = {jsonData["at"], jsonData["size"]};
 
-            //outputing for test
-            std::cout << "Position: " << output[0][0] << ", " << output[0][1] << std::endl;
+            //outputing for test for test
+            // std::cout << "Position: " << output[0][0] << ", " << output[0][1] << std::endl;
 
-            std::cout << "Size: " << output[1][0] << ", " << output[1][1] << std::endl;
+            // std::cout << "Size: " << output[1][0] << ", " << output[1][1] << std::endl;
         }
     }
     
@@ -73,36 +75,42 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex) {
     std::string dataSend = "j/clients";
 
     // sends socket data
-    int sendsConnection = send(sock, dataSend.c_str(), sizeof(addr), sizeof(dataSend));
+    int sendsConnection = send(sock, dataSend.c_str(), sizeof(addr), 0);
 
     if (sendsConnection < 0) {
         std::cerr << "Error at sending data socket";
-        
         return 1;
     }
     
-    // Setup buffer with size 1024 bytes size (it sure enough)
-    char buffer[1024]={0};
 
-    // Receive data
-    int bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
+    //Data for the result
+    std::string jsonData{};
 
-    // Check data received!!
-    if (bytesReceived > 0) {
-        std::cout << "Data received " << buffer << std::endl;
-        
-    } else if (bytesReceived == 0) {
-        std::cerr << "Data received failed" << std::endl;
 
-    } else {
-        std::cerr << "Data received error" << std::endl;
+    // Setup buffer with size 4096 bytes size (it sure enough)
+    char buffer[4096]={0};
+
+    // Loop through the recv to get all data
+    while (true) {
+        int bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
+
+        if (bytesReceived <= 0) {
+            break;
+        } 
+
+        jsonData.append(buffer, bytesReceived);
+
+        if (bytesReceived < sizeof(buffer)) {
+            break;
+        }
     }
 
+
     // Parse data
-    nlohmann::json parsedData = nlohmann::json::parse(buffer);
+    nlohmann::json parsedData = nlohmann::json::parse(jsonData);
 
     // Debug
-    std::cout << '\n'<< parsedData << std::endl;
+    // std::cout << '\n'<< parsedData << std::endl;
 
     // Setup output data
     std::vector<std::vector<int>> outputData;
@@ -121,7 +129,7 @@ int main() {
     std::string address{};
     std::mutex dataMutex;
 
-    address = "0x555aa9b36530";
+    address = "0x562adcc61790";
 
     int test = SocketSendConnection(address, dataMutex);
 
