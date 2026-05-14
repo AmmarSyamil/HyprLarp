@@ -66,7 +66,7 @@ int query(const nlohmann::json data, int address, std::string& output) {
 
 
 // Using windows address
-int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>> outputData) {
+int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     if (sock < 0) {
@@ -101,7 +101,7 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector
     std::string dataSend = "j/clients";
 
     // sends socket data
-    int sendsConnection = send(sock, dataSend.c_str(), sizeof(addr), 0);
+    int sendsConnection = send(sock, dataSend.c_str(), dataSend.size(), 0);
 
     if (sendsConnection < 0) {
         std::cerr << "Error at sending data socket";
@@ -148,10 +148,10 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector
 
     dataMutex.unlock();
 
-    if (!outputData.empty()) {
-        std::cout << "Position: " << outputData[0][0] << ", " << outputData[0][1] << std::endl;
-        std::cout << "Size: " << outputData[1][0] << ", " << outputData[1][1] << std::endl;
-    }
+    // if (!outputData.empty()) {
+    //     std::cout << "Position: " << outputData[0][0] << ", " << outputData[0][1] << std::endl;
+    //     std::cout << "Size: " << outputData[1][0] << ", " << outputData[1][1] << std::endl;
+    // }
 
     return 1;
 }
@@ -192,7 +192,7 @@ int SocketSendConnection(int address, std::mutex& dataMutex, std::string& output
     std::string dataSend = "j/clients";
 
     // sends socket data
-    int sendsConnection = send(sock, dataSend.c_str(), sizeof(addr), 0);
+    int sendsConnection = send(sock, dataSend.c_str(), dataSend.size(), 0);
 
     if (sendsConnection < 0) {
         std::cerr << "Error at sending data socket";
@@ -258,16 +258,17 @@ int main() {
         
         int pid = 1810;
         
-        address = "0x562adcc61790";
+        // address = "0x562adcc61790";
         
         int test = SocketSendConnection(pid, dataMutex, outputData);
         
+        address = outputData;
         //test
         std::cout << outputData << std::endl;
         
         int test2 = SocketSendConnection(address, dataMutex, outputData2);
         
-        if (!outputData.empty()) {
+        if (!outputData2.empty() && outputData2.size() >= 2 && outputData2[0].size() >= 2 && outputData2[1].size() >= 2) {
             std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
             std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
         }
