@@ -1,16 +1,20 @@
 zamn idk where to start
 
-1. Makesure is the 'activewindows2' the real thing to read for the movement? i think other can qualify like openwndow and move window or something.
-2. Use to detech all of window terminal inside a workspace not the active openwndow
+(-) . Makesure is the 'activewindows2' the real thing to read for the movement? i think other can qualify like openwndow and move window or something.
+2. Use to detech all of window terminal inside a workspace not         if (!outputData2.empty() && outputData2.size() >= 2 && outputData2[0].size() >= 2 && outputData2[1].size() >= 2) {
+            std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
+            std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
+        }the active openwndow
 3. find how to show video / maybe image frist for mvp. Makesure it blazing fast and cached so its even faster.
-4. i could use PID way instead of the window address thingy
+(v). i could use PID way instead of the window address thingy
 5. check only terminal //// kitty can run this program
+6. Make the socketsend more moduular. which is to split everyshit in the worlllld
 
 
 dumping stuffs
 
 Use:
-- PID → identify your process
-- window address → identify your exact window
+x PID → identify your process
+x window address → identify your exact window
 - parent process tree → detect terminal launch
 - Hyprland IPC → detect workspace/window state

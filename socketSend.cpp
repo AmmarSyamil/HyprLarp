@@ -16,7 +16,8 @@
 #include <nlohmann/json.hpp> 
 
 
-int query(const nlohmann::json data, std::string address, std::vector<std::vector<int>>& output) {
+// Function to output the worsp
+int queryPosWindow(const nlohmann::json data, std::string address, std::vector<std::vector<int>>& output) {
 
     // nlohmann::json jsonData{};
 
@@ -40,7 +41,7 @@ int query(const nlohmann::json data, std::string address, std::vector<std::vecto
 
 // Overload function of the query for the PID way of input
 // Output address of the window from input PID
-int query(const nlohmann::json data, int address, std::string& output) {
+int queryWindowAddress(const nlohmann::json data, int address, std::string& output) {
 
     // nlohmann::json jsonData{};
 
@@ -64,8 +65,28 @@ int query(const nlohmann::json data, int address, std::string& output) {
     return 1;
 }
 
+// Function to output the Workspace ID from given window address
+int queryWorkspaceId(const nlohmann::json data, int address, int& output) {
 
-// Using windows address
+    // nlohmann::json jsonData{};
+
+    // std::cout << "query test" << std::endl;
+
+    for (const auto& jsonData: data) {
+        if (jsonData["address"] == address) {
+            std::cout << jsonData["title"] << std::endl;
+
+            output = jsonData["workspace"]["id"];
+        }
+    }
+    
+    return 1;
+}
+
+
+
+
+// Using windows address to find window position and size
 int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -144,7 +165,7 @@ int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector
     dataMutex.lock();
 
     // Check windows json
-    query(parsedData, address, outputData);
+    queryPosWindow(parsedData, address, outputData);
 
     dataMutex.unlock();
 
@@ -235,7 +256,7 @@ int SocketSendConnection(int address, std::mutex& dataMutex, std::string& output
     dataMutex.lock();
 
     // Check windows json
-    query(parsedData, address, outputData);
+    queryWindowAddress(parsedData, address, outputData);
 
     dataMutex.unlock();
 
@@ -248,31 +269,36 @@ int SocketSendConnection(int address, std::mutex& dataMutex, std::string& output
     return 1;
 }
 
+
+
+
+
+
 // Testing grounds
-int main() {
-    std::string address{};
-    std::mutex dataMutex;
-    std::string outputData{};
-        std::vector<std::vector<int>> outputData2{};
+// int main() {
+//     std::string address{};
+//     std::mutex dataMutex;
+//     std::string outputData{};
+//         std::vector<std::vector<int>> outputData2{};
 
         
-        int pid = 1810;
+//         int pid = 1810;
         
-        // address = "0x562adcc61790";
+//         // address = "0x562adcc61790";
         
-        int test = SocketSendConnection(pid, dataMutex, outputData);
+//         int test = SocketSendConnection(pid, dataMutex, outputData);
         
-        address = outputData;
-        //test
-        std::cout << outputData << std::endl;
+//         address = outputData;
+//         //test
+//         std::cout << outputData << std::endl;
         
-        int test2 = SocketSendConnection(address, dataMutex, outputData2);
+//         int test2 = SocketSendConnection(address, dataMutex, outputData2);
         
-        if (!outputData2.empty() && outputData2.size() >= 2 && outputData2[0].size() >= 2 && outputData2[1].size() >= 2) {
-            std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
-            std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
-        }
+//         if (!outputData2.empty() && outputData2.size() >= 2 && outputData2[0].size() >= 2 && outputData2[1].size() >= 2) {
+//             std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
+//             std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
+//         }
 
 
-    return 1;
-}
+//     return 1;
+// }
