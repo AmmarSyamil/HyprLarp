@@ -96,6 +96,7 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
     if (!dataBuffer.empty()) {
         data.push_back(dataBuffer);
     }
+    
 
     return 1;
 }
