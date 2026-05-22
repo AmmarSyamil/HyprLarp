@@ -8,6 +8,7 @@
 
 #include "socketSend.hpp"
 #include "socketReceive.hpp"
+#include "tools.hpp"
 
 // Use:
 // - PID → identify your process
@@ -18,18 +19,44 @@
 int main() {
 
     // Get PID of the process
-    pid_t pid = getpid();
+    // pid_t pid = getpid();
     
     // Get current windows address from the pid, use socketsends
     std::mutex socketSendMutex;
     std::string windowsAddress; 
-    int socketSend = GetWindowAddress(pid, socketSendMutex, windowsAddress);
+
+    
+    // Implementation of PID (doent work)
+    
+    // // This implementation doesnt work
+    // int socketSend = GetWindowAddress(pid, socketSendMutex, windowsAddress);
+    
+    // std::cout << "GetWindowAddress returned " << socketSend << " and address '" << windowsAddress << "'\n";
+    
+    // if (windowsAddress.empty()) {
+        //     std::cerr << "No window address found for PID " << pid << ".\n";
+        //     return 1;
+        // }
+        
+
+    // Implementation of windwos title name terminal
+    // Change title name of the terminal
+    std::string TerminalWindowTittleName = ChangeWindowTittleName();
+    
+    int socketSend = GetWindowAddress(TerminalWindowTittleName, socketSendMutex, windowsAddress);
+    
+    // Theres a problem, after the int socketSend or up of this line the later std::cout doesnt works and jsut skip to the below if statement
+    std::cout << "hello";
+
     std::cout << "GetWindowAddress returned " << socketSend << " and address '" << windowsAddress << "'\n";
 
     if (windowsAddress.empty()) {
-        std::cerr << "No window address found for PID " << pid << ".\n";
+        std::cerr << "No window address found for Window Tittle name " << TerminalWindowTittleName << ".\n";
         return 1;
     }
+
+    //PROBLEM 1 :
+    // PID that it find isnt window PID, so it always say PID not find.
 
     // Get that window position and size
     std::mutex socketSendMutex2;

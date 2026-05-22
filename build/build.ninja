@@ -94,6 +94,15 @@ build CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o: CXX_COMPILER__hyprlarp_unscann
   OBJECT_FILE_DIR = CMakeFiles/hyprlarp.dir
   TARGET_SUPPORT_DIR = CMakeFiles/hyprlarp.dir
 
+build CMakeFiles/hyprlarp.dir/tools.cpp.o: CXX_COMPILER__hyprlarp_unscanned_Debug /home/sp/code/hyprlarp/tools.cpp || cmake_object_order_depends_target_hyprlarp
+  CONFIG = Debug
+  DEP_FILE = CMakeFiles/hyprlarp.dir/tools.cpp.o.d
+  FLAGS = -g -std=gnu++20 -Wall -Wextra -Wpedantic
+  INCLUDES = -I/home/sp/code/hyprlarp
+  OBJECT_DIR = CMakeFiles/hyprlarp.dir
+  OBJECT_FILE_DIR = CMakeFiles/hyprlarp.dir
+  TARGET_SUPPORT_DIR = CMakeFiles/hyprlarp.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target hyprlarp
@@ -102,7 +111,7 @@ build CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o: CXX_COMPILER__hyprlarp_unscann
 #############################################
 # Link the executable hyprlarp
 
-build hyprlarp: CXX_EXECUTABLE_LINKER__hyprlarp_Debug CMakeFiles/hyprlarp.dir/main.cpp.o CMakeFiles/hyprlarp.dir/socketSend.cpp.o CMakeFiles/hyprlarp.dir/socketReceive.cpp.o CMakeFiles/hyprlarp.dir/dataChecker.cpp.o CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o
+build hyprlarp: CXX_EXECUTABLE_LINKER__hyprlarp_Debug CMakeFiles/hyprlarp.dir/main.cpp.o CMakeFiles/hyprlarp.dir/socketSend.cpp.o CMakeFiles/hyprlarp.dir/socketReceive.cpp.o CMakeFiles/hyprlarp.dir/dataChecker.cpp.o CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o CMakeFiles/hyprlarp.dir/tools.cpp.o
   CONFIG = Debug
   DEP_FILE = CMakeFiles/hyprlarp.dir/link.d
   FLAGS = -g

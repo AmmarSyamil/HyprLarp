@@ -28,5 +28,11 @@
   "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o -c /home/sp/code/hyprlarp/layoutWindow.cpp",
   "file": "/home/sp/code/hyprlarp/layoutWindow.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/tools.cpp.o -c /home/sp/code/hyprlarp/tools.cpp",
+  "file": "/home/sp/code/hyprlarp/tools.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/tools.cpp.o"
 }
 ]

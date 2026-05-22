@@ -53,6 +53,29 @@ int queryWindowAddress(const nlohmann::json data, int address, std::string& outp
     return found ? 0 : 1;
 }
 
+//Overload from terminal window tittle name
+// Output address of the window from input tittle name
+int queryWindowAddress(const nlohmann::json data, std::string address, std::string& output) {
+    bool found = false;
+
+    for (const auto& jsonData: data) {
+        if (jsonData["title"] == address) {
+            std::cout << "Found window: " << jsonData["title"] << std::endl;
+            output = jsonData["address"].get<std::string>();
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "queryWindowAddress: no matching window found for " << address << std::endl;
+    }
+
+    return found ? 0 : 1;
+}
+
+
+
 // Function to output the Workspace ID from given window address
 int queryWorkspaceId(const nlohmann::json data, int address, int& output) {
 
@@ -72,6 +95,7 @@ int queryWorkspaceId(const nlohmann::json data, int address, int& output) {
 }
 
 // Actually it called clients  { clients - lists all windows with their properties }
+// Runs similarly wiht hyprctl clients -j
 int GetWindowsPropertiesData(nlohmann::json& outputData) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -145,7 +169,6 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 }
 
 // Function that called other function
-
 // Using windows address to find window position and size
 int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt) {
     if (!data.has_value()) {
@@ -165,6 +188,23 @@ int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<
 
 // Using PID address to find windows address
 int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
+    if (!data.has_value()) {
+        nlohmann::json jsonData;
+        if (GetWindowsPropertiesData(jsonData) != 0) {
+            return 1;
+        }
+        data = jsonData;
+    }
+
+    dataMutex.lock();
+    int result = queryWindowAddress(data.value(), address, outputData);
+    dataMutex.unlock();
+
+    return result;
+}
+
+//Function overload for windows tittle terminal
+int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
     if (!data.has_value()) {
         nlohmann::json jsonData;
         if (GetWindowsPropertiesData(jsonData) != 0) {

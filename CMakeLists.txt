@@ -23,6 +23,7 @@ add_executable(hyprlarp
     socketReceive.cpp
     dataChecker.cpp
     layoutWindow.cpp
+    tools.cpp
 )
 
 # Link libraries
