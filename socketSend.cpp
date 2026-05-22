@@ -77,7 +77,7 @@ int queryWindowAddress(const nlohmann::json data, std::string address, std::stri
 
 
 // Function to output the Workspace ID from given window address
-int queryWorkspaceId(const nlohmann::json data, int address, int& output) {
+int queryWorkspaceId(const nlohmann::json data, int address, std::string& output) {
 
     // nlohmann::json jsonData{};
 
@@ -122,7 +122,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
         return 1;
     } else {
-        std::cout << "Connection succesfull (socket sends)";
+        std::cout << "Connection succesfull (socket sends)" << std::endl;
     }
 
     
@@ -147,6 +147,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
     // Loop through the recv to get all data
     while (true) {
+        memset(buffer, 0, sizeof(buffer));
         ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
 
         if (bytesReceived <= 0) {
@@ -155,7 +156,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
         jsonData.append(buffer, static_cast<size_t>(bytesReceived));
 
-        if (static_cast<size_t>(bytesReceived) < sizeof(buffer)) {
+        if (static_cast<size_t>(bytesReceived) < sizeof(buffer)-1) {
             break;
         }
     }
@@ -165,7 +166,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     outputData = nlohmann::json::parse(jsonData);
 
 
-    return 1;
+    return 0;
 }
 
 // Function that called other function
@@ -207,17 +208,28 @@ int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputDa
 int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
     if (!data.has_value()) {
         nlohmann::json jsonData;
-        if (GetWindowsPropertiesData(jsonData) != 0) {
-            return 1;
-        }
+        
+        // Keknya ke return deh disini
+        // if (GetWindowsPropertiesData(jsonData) != 0) {
+        //     return 1;
+        // }
+        
+        GetWindowsPropertiesData(jsonData);
+
         data = jsonData;
     }
 
-    dataMutex.lock();
-    int result = queryWindowAddress(data.value(), address, outputData);
-    dataMutex.unlock();
-
-    return result;
+    // Use this wird add mutex
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        int result = queryWindowAddress(data.value(), address, outputData);
+        
+        return result;
+    };
+    // dataMutex.lock();
+    // dataMutex.unlock();
+    // std::lock_guard<std::mutex> 
+    return 1;
 }
 
 // Testing grounds

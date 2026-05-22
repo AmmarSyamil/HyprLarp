@@ -43,12 +43,10 @@ int main() {
     // Change title name of the terminal
     std::string TerminalWindowTittleName = ChangeWindowTittleName();
     
+    // I think theres some mismatch speed of the thread between the main and sockseSend's one but it still kinda works
     int socketSend = GetWindowAddress(TerminalWindowTittleName, socketSendMutex, windowsAddress);
     
-    // Theres a problem, after the int socketSend or up of this line the later std::cout doesnt works and jsut skip to the below if statement
-    std::cout << "hello";
-
-    std::cout << "GetWindowAddress returned " << socketSend << " and address '" << windowsAddress << "'\n";
+    std::cout << "GetWindowAddress returned " << socketSend << " and address " << windowsAddress << "\n";
 
     if (windowsAddress.empty()) {
         std::cerr << "No window address found for Window Tittle name " << TerminalWindowTittleName << ".\n";
