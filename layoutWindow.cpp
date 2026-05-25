@@ -6,22 +6,34 @@
 #include <iostream>
 #include <vector>
 
+#include "DataType.hpp"
+
 // Function to convert [at, size] into cartesius coordinate [x, y]
-int ConvertPosFormat(std::vector<std::vector<int>>& DataInput) {
+WindowPosCartesian ConvertPosFormat(WindowPos& DataInput) {
     // Convert to 4  point for each corver of the window by format of cartesius coordinate
 
     //Point of left up
-    std::vector<int> LeftUp{DataInput[0][0],DataInput[0][1]}; // (at x, at y)
-    std::vector<int> LeftDown{DataInput[0][0], DataInput[0][1] - DataInput[1][1]}; // (at x, at y - size y)
-    std::vector<int> RightUp{DataInput[0][0] + DataInput[1][0], DataInput[0][1]}; // (at x + size x, at y)
-    std::vector<int> RightDown{DataInput[0][0] + DataInput[1][0], DataInput[0][1] - DataInput[1][1]}; // (at x + size x, at y - size y)
+    // std::vector<int> LeftUp{DataInput[0][0],DataInput[0][1]}; // (at x, at y)
+    // std::vector<int> LeftDown{DataInput[0][0], DataInput[0][1] - DataInput[1][1]}; // (at x, at y - size y)
+    // std::vector<int> RightUp{DataInput[0][0] + DataInput[1][0], DataInput[0][1]}; // (at x + size x, at y)
+    // std::vector<int> RightDown{DataInput[0][0] + DataInput[1][0], DataInput[0][1] - DataInput[1][1]}; // (at x + size x, at y - size y)
 
-    std::cout << "LeftUp:    (" << LeftUp[0] << ", " << LeftUp[1] << ")" << std::endl;
-    std::cout << "LeftDown:  (" << LeftDown[0] << ", " << LeftDown[1] << ")" << std::endl;
-    std::cout << "RightUp:   (" << RightUp[0] << ", " << RightUp[1] << ")" << std::endl;
-    std::cout << "RightDown: (" << RightDown[0] << ", " << RightDown[1] << ")" << std::endl;
+    // std::cout << "LeftUp:    (" << LeftUp[0] << ", " << LeftUp[1] << ")" << std::endl;
+    // std::cout << "LeftDown:  (" << LeftDown[0] << ", " << LeftDown[1] << ")" << std::endl;
+    // std::cout << "RightUp:   (" << RightUp[0] << ", " << RightUp[1] << ")" << std::endl;
+    // std::cout << "RightDown: (" << RightDown[0] << ", " << RightDown[1] << ")" << std::endl;
 
-    return 1;
+    // New implementation
+
+    WindowPosCartesian output;
+
+    output.topLeft = {DataInput.at[0], DataInput.at[1]};
+    output.topRight = {DataInput.at[0], DataInput.at[1] + DataInput.size[1]};
+    output.bottomLeft = {DataInput.at[0]+DataInput.size[0], DataInput.at[1]};
+    output.bottomRight = {DataInput.at[0] + DataInput.size[0], DataInput.at[1] + DataInput.size[1]};
+
+
+    return output;
 }
 
 

@@ -9,6 +9,8 @@
 #include "socketSend.hpp"
 #include "socketReceive.hpp"
 #include "tools.hpp"
+#include "checkTerminal.hpp"
+#include "DataType.hpp"
 
 // Use:
 // - PID → identify your process
@@ -17,27 +19,21 @@
 // - Hyprland IPC → detect workspace/window state
 
 int main() {
+    // Check wether it was run via terminal or not
+    if (checkTerminal() == 0) {
+        std::cout << "Please rn via terminal";
+        return 1;
+    }
+
+    // initialized the WindowData type
+    WorkspaceData Data;
 
     // Get PID of the process
     // pid_t pid = getpid();
     
     // Get current windows address from the pid, use socketsends
     std::mutex socketSendMutex;
-    std::string windowsAddress; 
-
-    
-    // Implementation of PID (doent work)
-    
-    // // This implementation doesnt work
-    // int socketSend = GetWindowAddress(pid, socketSendMutex, windowsAddress);
-    
-    // std::cout << "GetWindowAddress returned " << socketSend << " and address '" << windowsAddress << "'\n";
-    
-    // if (windowsAddress.empty()) {
-        //     std::cerr << "No window address found for PID " << pid << ".\n";
-        //     return 1;
-        // }
-        
+    std::string windowsAddress;         
 
     // Implementation of windwos title name terminal
     // Change title name of the terminal
@@ -53,9 +49,6 @@ int main() {
         return 1;
     }
 
-    //PROBLEM 1 :
-    // PID that it find isnt window PID, so it always say PID not find.
-
     // Get that window position and size
     std::mutex socketSendMutex2;
     std::vector<std::vector<int>> windowProperties;
@@ -68,6 +61,10 @@ int main() {
     } else {
         std::cerr << "No window property data found for address " << windowsAddress << ".\n";
     }
+
+    // Get all terminal window from that workspace
+    // queryWorkspaceId();
+
 
     return 1;
 }

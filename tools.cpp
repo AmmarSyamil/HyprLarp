@@ -26,7 +26,8 @@ std::string generate_random_string(std::size_t length) {
 
 std::string ChangeWindowTittleName() {
 
-    std::string Tittle = generate_random_string(4);
+    // Use 6 random character as uniques identifier
+    std::string Tittle = generate_random_string(6);
     
     // Set tittle
     // we mabe can use     std::cout << "\033]21;" << Tittle << "\007" << std::flush; in future that are kitty spesific

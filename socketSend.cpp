@@ -10,26 +10,30 @@
 #include <mutex>
 #include <nlohmann/json.hpp> 
 
+#include "DataType.hpp"
 //Function that being called
 
 // Function to output the worsp
-int queryPosWindow(const nlohmann::json data, const std::string& address, std::vector<std::vector<int>>& output) {
-    bool found = false;
+int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
 
+    // well we can do this std::vector<int> at = jsonData["at"].get<std::vector<int>>();
     for (const auto& jsonData: data) {
         if (jsonData["address"] == address) {
-            std::cout << "Found window title: " << jsonData["title"] << std::endl;
-            output = {jsonData["at"], jsonData["size"]};
-            found = true;
-            break;
+            // std::cout << "Found window title: " << jsonData["title"] << std::endl;
+            // output = {jsonData["at"], jsonData["size"]};
+
+            output.at = jsonData["at"].get<std::vector<int>>();
+            output.size = jsonData["size"].get<std::vector<int>>();
+
+            return 0;
         }
     }
 
-    if (!found) {
-        std::cerr << "queryPosWindow: no matching address found for " << address << std::endl;
-    }
+    // if (!found) {
+    //     std::cerr << "queryPosWindow: no matching address found for " << address << std::endl;
+    // }
 
-    return found ? 0 : 1;
+    return 1;
 }
 
 // Overload function of the query for the PID way of input
@@ -74,10 +78,8 @@ int queryWindowAddress(const nlohmann::json data, std::string address, std::stri
     return found ? 0 : 1;
 }
 
-
-
-// Function to output the Workspace ID from given window address
-int queryWorkspaceId(const nlohmann::json data, int address, std::string& output) {
+// Function to return the Workspace ID from given window address
+int queryWorkspaceId(const nlohmann::json data, std::string address) {
 
     // nlohmann::json jsonData{};
 
@@ -87,11 +89,15 @@ int queryWorkspaceId(const nlohmann::json data, int address, std::string& output
         if (jsonData["address"] == address) {
             std::cout << jsonData["title"] << std::endl;
 
-            output = jsonData["workspace"]["id"];
+            return jsonData["workspace"]["id"];
         }
     }
+
+    // if (output.empty()) {
+    //     return 0;
+    // }
     
-    return 1;
+    return -1;
 }
 
 // Actually it called clients  { clients - lists all windows with their properties }
@@ -169,23 +175,21 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     return 0;
 }
 
+
 // Function that called other function
+
+
+// this function have no uses
+// Maybe deprecate it later
 // Using windows address to find window position and size
-int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt) {
-    if (!data.has_value()) {
-        nlohmann::json jsonData;
-        if (GetWindowsPropertiesData(jsonData) != 0) {
-            return 1;
-        }
-        data = jsonData;
-    }
+// int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, nlohmann::json& data) {
+    
+//     dataMutex.lock();
+//     int result = queryPosWindow(data, address, outputData);
+//     dataMutex.unlock();
 
-    dataMutex.lock();
-    int result = queryPosWindow(data.value(), address, outputData);
-    dataMutex.unlock();
-
-    return result;
-}
+//     return result;
+// }
 
 // Using PID address to find windows address
 int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
@@ -230,6 +234,12 @@ int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& ou
     // dataMutex.unlock();
     // std::lock_guard<std::mutex> 
     return 1;
+}
+
+
+// Function to get all window properties [position, size, tittleName] from given workspace id
+int GetAllWindowOfWorkspace() {
+
 }
 
 // Testing grounds

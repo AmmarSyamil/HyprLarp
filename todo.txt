@@ -10,12 +10,27 @@ zamn idk where to start
 5. check only terminal //// kitty can run this program
 (v). Make the socketsend more moduular. which is to split everyshit in the worlllld
 7. Performance improvement : cached the json window  thingy result data in the socketSend and like change the data if theres update in the current workspace, maybe use static local or someshit (search different implementation between static and global and local implementation type shiiii it sooo goood but like i think i should not do that in here yet)
-8. Use implementation of the old socketRecieve to get the PID and workspace id cuz the previous implementation doesnt work cuz its not a GUI program.
+(-). Use implementation of the old socketRecieve to get the PID and workspace id cuz the previous implementation doesnt work cuz its not a GUI program.
+8. Make dedicated file of the output form of the window thingy
+9. check if the one it open is terminal or not
+10. instead of few specializied function make it full type.'
+11. use the cartesian coordinate converter for the windows
+12. we can add feature to chcekc what terminal is it, like what emulator/shell, by recursively scan previous of hte tree until we got the terminal emulator scripting type shit.
+13. Use the WorkspaceData as parameter to must of socket function
+
+
+
+
 
 dumping stuffs
 
 Use:
 x PID → identify your process
 x window address → identify your exact window
-- parent process tree → detect terminal launch
+- parent process tree → detect terminal launch 
 - Hyprland IPC → detect workspace/window state
+
+File type:
+- [position, size]
+- tittle name
+- workspace id
