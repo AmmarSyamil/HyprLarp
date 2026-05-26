@@ -17,9 +17,8 @@ zamn idk where to start
 11. use the cartesian coordinate converter for the windows
 12. we can add feature to chcekc what terminal is it, like what emulator/shell, by recursively scan previous of hte tree until we got the terminal emulator scripting type shit.
 13. Use the WorkspaceData as parameter to must of socket function
-
-
-
+14. Finish the DataType.hpp for the refresh data function
+15. USE PID INSTEAD of tittle shit to find window ID
 
 
 dumping stuffs

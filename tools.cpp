@@ -41,6 +41,8 @@ std::string ChangeWindowTittleName() {
 
 
 
+
+
 // int main() {
 //     // std::cout << generate_random_string(5);
 //     std::string TittleName = ChangeWindowTittleName();

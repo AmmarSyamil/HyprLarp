@@ -27,11 +27,10 @@ WorkspaceData::WorkspaceData() {
     this->WorkspaceID = WorkspaceData::FindWorkspaceID(this->mainTerminalWindowID);
 
     // Put main terminal window ID into windowData type in the array
-
-
+    InsertWindowData(this->mainTerminalWindowID, 1);
 }
 
-// Constructur
+// Constructor function
 WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& data) {
     
     // Put requirement data into the object
@@ -58,7 +57,7 @@ WindowPos WindowData::GetWindowPos(nlohmann::json& data) {
     std::mutex mutex;
     WindowPos output;
     
-    // why i need double vector of int? yeah actually
+    // why i need double vector of int? yeah actually jst delete it
     if (queryPosWindow(data, this->windowID, output) == 1) {
         std::cerr << "Cant find post window somehow";
     };
@@ -86,8 +85,18 @@ int WorkspaceData::FindWorkspaceID(std::string& windowID) {
     return queryWorkspaceId(this->data, windowID);
 } 
 
-
+// window type {1: main, 0 : sub}
 int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
     WindowData(windowType, windowID, this->data);
     return 1;
 }
+
+// Fetch all windowID that have workspaceID
+// Output of vector from windowID
+std::vector<std::string> FetchWindowID() {
+    // First find the current workspace ID
+    // Then from the data recursive loop to find which window ID have that workspace id
+    // then check if its a terminal or not
+    // i have to make terminal checker which idk how
+    
+};

@@ -9,6 +9,8 @@ struct WindowPos {
     std::vector<int> size;
 };
 
+
+// Cartesian position in [x, y]
 struct WindowPosCartesian {
     std::vector<int> topLeft; // top left point
     std::vector<int> topRight; // top right point
@@ -22,7 +24,6 @@ private:
     //Window pos in [at, size]
     WindowPos windowPos;
 
-    //Cartesian position in [x, y]
     WindowPosCartesian windowPosCartesian;
 
     std::string windowID;
@@ -59,13 +60,6 @@ public:
     //Main terminal window address
     std::string mainTerminalWindowID;
 
-
-    // // Hyprctl client -j full data
-    // nlohmann::json data;
-
-    // // Vector containingwindowType all data of the window properties
-    // std::vector<WindowData> windowData;
-
     // Function to find workspace ID (address) from given terminal window tittle name
     std::string windowID(std::string TerminalWindowTittleName);
 
@@ -75,10 +69,13 @@ public:
     // Put window ID into the windowdata
     int InsertWindowData(std::string& windowID, int windowType);
 
+    // Fetch all windowID that have workspaceID
+    // Output of vector from windowID
+    std::vector<std::string> FetchWindowID();
+
     // refresh data
     // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.
 
-    
     // Constructor
     WorkspaceData();
 };
