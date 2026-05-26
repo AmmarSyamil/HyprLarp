@@ -16,3 +16,4 @@ int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<
 int queryWindowAddress(const nlohmann::json data, int address, std::string& output);
 int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt);
 int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt);
+nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID);

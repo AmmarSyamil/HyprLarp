@@ -8,7 +8,7 @@
 #include <optional>
 
 // return 1 if it run from terminal, return 0 if it not, and -1 if theres error
-int checkTerminal() {
+int checkTerminalWhichCurrentlyRunOn() {
     if (isatty(STDIN_FILENO)) {
         std::cout << "Running from terminal\n";
         return 1;
@@ -99,6 +99,28 @@ pid_t FindTerminalPID() {
     }
 
     return -1;
+}
+
+
+// Is terminal return 1, not terminal return 0.
+int IsPIDTerminal(pid_t pid) {
+
+    while (pid > 1) {
+
+        std::string name = GetProcessName(pid);
+
+        std::cout << "PID: " << pid
+                << " NAME: [" << name << "]\n";
+
+        if (terminals.contains(name)) {
+            std::cout << "FOUND TERMINAL\n";
+            return 1;
+        }
+
+        pid = GetParentPID(pid);
+    }
+
+    return 0;
 }
 
 // int main() {

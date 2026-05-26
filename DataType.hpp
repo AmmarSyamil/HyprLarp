@@ -42,6 +42,8 @@ private:
 
     // Constructor
     WindowData(int windowType, std::string windowID, nlohmann::json& data);
+
+    friend std::ostream& operator<<(std::ostream& os, const WindowData& wd);
 };
 
 class WorkspaceData {
@@ -69,13 +71,14 @@ public:
     // Put window ID into the windowdata
     int InsertWindowData(std::string& windowID, int windowType);
 
-    // Fetch all windowID that have workspaceID
-    // Output of vector from windowID
-    std::vector<std::string> FetchWindowID();
+    // Fetch all windowID that have workspaceID and put it into windowData
+    int FetchWindowID();
 
     // refresh data
     // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.
 
     // Constructor
     WorkspaceData();
+
+    friend std::ostream& operator<<(std::ostream& os, const WorkspaceData& ws);
 };

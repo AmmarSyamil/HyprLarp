@@ -34,5 +34,17 @@
   "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/tools.cpp.o -c /home/sp/code/hyprlarp/tools.cpp",
   "file": "/home/sp/code/hyprlarp/tools.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/tools.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/DataType.cpp.o -c /home/sp/code/hyprlarp/DataType.cpp",
+  "file": "/home/sp/code/hyprlarp/DataType.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/DataType.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/checkTerminal.cpp.o -c /home/sp/code/hyprlarp/checkTerminal.cpp",
+  "file": "/home/sp/code/hyprlarp/checkTerminal.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/checkTerminal.cpp.o"
 }
 ]

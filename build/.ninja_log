@@ -1,8 +1,11 @@
 # ninja log v7
 77	787	1778781503004291912	CMakeFiles/hyprlarp.dir/dataChecker.cpp.o	772e8a2da080eb55
-3	673	1778781738708744396	CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o	cb31c232566558bb
-3	3740	1779468194291535694	CMakeFiles/hyprlarp.dir/main.cpp.o	7da97682f53e3ddd
-4	6450	1779468194292535704	CMakeFiles/hyprlarp.dir/socketSend.cpp.o	aee96db344831352
+11	3026	1779805567908523857	CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o	cb31c232566558bb
+2	1805	1779805589220726871	CMakeFiles/hyprlarp.dir/main.cpp.o	7da97682f53e3ddd
+11	4721	1779805567907476233	CMakeFiles/hyprlarp.dir/socketSend.cpp.o	aee96db344831352
 3	1086	1778781551397362158	CMakeFiles/hyprlarp.dir/socketReceive.cpp.o	deb39702226613d0
 2642	2833	1779489301674678320	hyprlarp	627c05e99edc2a54
-4	2642	1779489299036678496	CMakeFiles/hyprlarp.dir/tools.cpp.o	2305d333305c556a
+11	2680	1779805567908691893	CMakeFiles/hyprlarp.dir/tools.cpp.o	2305d333305c556a
+2	2196	1779805825379504029	CMakeFiles/hyprlarp.dir/DataType.cpp.o	ad8693b8f867144d
+2	965	1779805864539964545	CMakeFiles/hyprlarp.dir/checkTerminal.cpp.o	3f9b79561f539e71
+965	1113	1779805865502975870	hyprlarp	6c1444905e97487

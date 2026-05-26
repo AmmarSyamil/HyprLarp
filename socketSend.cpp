@@ -237,9 +237,23 @@ int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& ou
 }
 
 
-// Function to get all window properties [position, size, tittleName] from given workspace id
-int GetAllWindowOfWorkspace() {
+// Get all of window ID with the same workspaceID
+nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) {
+    nlohmann::json output;
+    for (const auto& jsonData: data) {
+        if (jsonData["workspace"]["id"] == workspaceID) {
+            std::cout << jsonData["title"] << std::endl;
 
+            output.emplace_back(jsonData["address"]);
+        }
+    }
+
+    // if  (output.empty()) {
+    //     // return -1;
+    //     // errror
+    // }
+
+    return output;
 }
 
 // Testing grounds

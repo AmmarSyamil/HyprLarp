@@ -12,6 +12,9 @@
 #include "tools.hpp"
 #include "layoutWindow.hpp"
 
+#include "checkTerminal.hpp"
+
+
 // Constructor 
 WorkspaceData::WorkspaceData() {
     // Pupulate the data part
@@ -91,12 +94,84 @@ int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
     return 1;
 }
 
-// Fetch all windowID that have workspaceID
+// Fetch all terminal windowID that have workspaceID
 // Output of vector from windowID
-std::vector<std::string> FetchWindowID() {
-    // First find the current workspace ID
+int WorkspaceData::FetchWindowID() {
+    // First find the current workspace ID done
     // Then from the data recursive loop to find which window ID have that workspace id
     // then check if its a terminal or not
     // i have to make terminal checker which idk how
-    
+
+    for (const auto& jsonData: GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
+        if (IsPIDTerminal(jsonData["pid"]) == 1) {
+            // I think i need to change the normal json data into the window data format.
+            this->windowData.emplace_back(0, jsonData["address"], this->data);
+        }
+    }
+
 };
+
+static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
+    os << "[";
+    
+    for (size_t i = 0; i < vec.size(); i++) {
+        os << vec[i];
+
+        if (i != vec.size() - 1)
+            os << ", ";
+    }
+
+    os << "]";
+}
+
+std::ostream& operator<<(std::ostream& os, const WindowData& wd) {
+    os << "WindowData {\n";
+
+    os << "  windowID: " << wd.windowID << "\n";
+    os << "  windowType: " << wd.windowType << "\n";
+
+    os << "  at: ";
+    PrintVec(os, wd.windowPos.at);
+    os << "\n";
+
+    os << "  size: ";
+    PrintVec(os, wd.windowPos.size);
+    os << "\n";
+
+    os << "  topLeft: ";
+    PrintVec(os, wd.windowPosCartesian.topLeft);
+    os << "\n";
+
+    os << "  topRight: ";
+    PrintVec(os, wd.windowPosCartesian.topRight);
+    os << "\n";
+
+    os << "  bottomLeft: ";
+    PrintVec(os, wd.windowPosCartesian.bottomLeft);
+    os << "\n";
+
+    os << "  bottomRight: ";
+    PrintVec(os, wd.windowPosCartesian.bottomRight);
+    os << "\n";
+
+    os << "}";
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const WorkspaceData& ws) {
+    os << "WorkspaceData {\n";
+
+    os << "  WorkspaceID: " << ws.WorkspaceID << "\n";
+    os << "  mainTerminalWindowID: " << ws.mainTerminalWindowID << "\n";
+
+    os << "  windowData:\n";
+
+    for (const auto& window : ws.windowData) {
+        os << window << "\n";
+    }
+
+    os << "}";
+
+    return os;
+}

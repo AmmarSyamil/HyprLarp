@@ -24,6 +24,8 @@ add_executable(hyprlarp
     dataChecker.cpp
     layoutWindow.cpp
     tools.cpp
+    DataType.cpp
+    checkTerminal.cpp
 )
 
 # Link libraries
