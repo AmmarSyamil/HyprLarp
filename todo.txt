@@ -18,7 +18,31 @@ zamn idk where to start
 (v). we can add feature to chcekc what terminal is it, like what emulator/shell, by recursively scan previous of hte tree until we got the terminal emulator scripting type shit.
 13. Use the WorkspaceData as parameter to must of socket function
 14. Finish the DataType.hpp for the refresh data function
-15. USE PID INSTEAD of tittle shit to find window ID
+(V). USE PID INSTEAD of tittle shit to find window ID
+
+
+
+video :
+1. use kitty, ghossty, WezTerm
+2. SHM memory IPC shit
+3. use mpv
+4. what way should i use, i think i need to make a pointer to the video run, then use pointer and just do crop crop
+5. How to do the layout one
+
+How to make it like simultinuesly render? 
+1. Decoder : 
+2. 
+
+How can i crop the video then?
+mpv --vf=crop=width:height:x_offset:y_offset video.mp4
+
+comman mpv : 
+mpv --vo=kitty --vo-kitty-use-shm=yes --osc=no --osd-level=0 --profile=sw-fast --really-quiet video.mp4
+
+
+current implementation for like suitable shitthingy :
+- instead of each running kity mpv, one decode and other refernce the memory
+- propable use https://gitlab.com/sh4lt/sh4lt
 
 
 dumping stuffs
@@ -28,6 +52,7 @@ x PID → identify your process
 x window address → identify your exact window
 - parent process tree → detect terminal launch 
 - Hyprland IPC → detect workspace/window state
+- mmap
 
 File type:
 - [position, size]

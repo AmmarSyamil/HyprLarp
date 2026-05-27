@@ -23,8 +23,8 @@ CMAKE_AR:FILEPATH=/usr/bin/ar
 //No help, variable specified on the command line.
 CMAKE_BUILD_TYPE:STRING=Debug
 
-//No help, variable specified on the command line.
-CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++
+//CXX compiler
+CMAKE_CXX_COMPILER:STRING=/usr/bin/g++
 
 //A wrapper around 'ar' adding the appropriate '--plugin' option
 // for the GCC compiler
@@ -49,8 +49,8 @@ CMAKE_CXX_FLAGS_RELEASE:STRING=-O3 -DNDEBUG
 //Flags used by the CXX compiler during RELWITHDEBINFO builds.
 CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG
 
-//No help, variable specified on the command line.
-CMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc
+//C compiler
+CMAKE_C_COMPILER:STRING=/usr/bin/gcc
 
 //A wrapper around 'ar' adding the appropriate '--plugin' option
 // for the GCC compiler
@@ -229,17 +229,17 @@ HyprLarp_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 HyprLarp_SOURCE_DIR:STATIC=/home/sp/code/hyprlarp
 
-//Value Computed by CMake
-Project_BINARY_DIR:STATIC=/home/sp/code/hyprlarp/build
+//Arguments to supply to pkg-config
+PKG_CONFIG_ARGN:STRING=
 
-//Value Computed by CMake
-Project_IS_TOP_LEVEL:STATIC=ON
-
-//Value Computed by CMake
-Project_SOURCE_DIR:STATIC=/home/sp/code/hyprlarp
+//pkg-config executable
+PKG_CONFIG_EXECUTABLE:FILEPATH=/usr/bin/pkg-config
 
 //The directory containing a CMake configuration file for nlohmann_json.
 nlohmann_json_DIR:PATH=/usr/share/cmake/nlohmann_json
+
+//Path to a library.
+pkgcfg_lib_SH4LT_sh4lt-0.3:FILEPATH=/usr/local/lib/libsh4lt-0.3.so
 
 
 ########################
@@ -393,4 +393,50 @@ CMAKE_TAPI-ADVANCED:INTERNAL=1
 CMAKE_UNAME:INTERNAL=/usr/bin/uname
 //ADVANCED property for variable: CMAKE_VERBOSE_MAKEFILE
 CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
+//Details about finding PkgConfig
+FIND_PACKAGE_MESSAGE_DETAILS_PkgConfig:INTERNAL=[/usr/bin/pkg-config][v2.5.1()]
+//ADVANCED property for variable: PKG_CONFIG_ARGN
+PKG_CONFIG_ARGN-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: PKG_CONFIG_EXECUTABLE
+PKG_CONFIG_EXECUTABLE-ADVANCED:INTERNAL=1
+SH4LT_CFLAGS:INTERNAL=-I/usr/local/include/sh4lt-0.3
+SH4LT_CFLAGS_I:INTERNAL=
+SH4LT_CFLAGS_OTHER:INTERNAL=
+SH4LT_FOUND:INTERNAL=1
+SH4LT_INCLUDEDIR:INTERNAL=/usr/local/include
+SH4LT_INCLUDE_DIRS:INTERNAL=/usr/local/include/sh4lt-0.3
+SH4LT_LDFLAGS:INTERNAL=-L/usr/local/lib;-lsh4lt-0.3
+SH4LT_LDFLAGS_OTHER:INTERNAL=
+SH4LT_LIBDIR:INTERNAL=/usr/local/lib
+SH4LT_LIBRARIES:INTERNAL=sh4lt-0.3
+SH4LT_LIBRARY_DIRS:INTERNAL=/usr/local/lib
+SH4LT_LIBS:INTERNAL=
+SH4LT_LIBS_L:INTERNAL=
+SH4LT_LIBS_OTHER:INTERNAL=
+SH4LT_LIBS_PATHS:INTERNAL=
+SH4LT_MODULE_NAME:INTERNAL=sh4lt-0.3
+SH4LT_PREFIX:INTERNAL=/usr/local
+SH4LT_STATIC_CFLAGS:INTERNAL=-I/usr/local/include/sh4lt-0.3
+SH4LT_STATIC_CFLAGS_I:INTERNAL=
+SH4LT_STATIC_CFLAGS_OTHER:INTERNAL=
+SH4LT_STATIC_INCLUDE_DIRS:INTERNAL=/usr/local/include/sh4lt-0.3
+SH4LT_STATIC_LDFLAGS:INTERNAL=-L/usr/local/lib;-lsh4lt-0.3
+SH4LT_STATIC_LDFLAGS_OTHER:INTERNAL=
+SH4LT_STATIC_LIBDIR:INTERNAL=
+SH4LT_STATIC_LIBRARIES:INTERNAL=sh4lt-0.3
+SH4LT_STATIC_LIBRARY_DIRS:INTERNAL=/usr/local/lib
+SH4LT_STATIC_LIBS:INTERNAL=
+SH4LT_STATIC_LIBS_L:INTERNAL=
+SH4LT_STATIC_LIBS_OTHER:INTERNAL=
+SH4LT_STATIC_LIBS_PATHS:INTERNAL=
+SH4LT_VERSION:INTERNAL=0.3.2
+SH4LT_sh4lt-0.3_INCLUDEDIR:INTERNAL=
+SH4LT_sh4lt-0.3_LIBDIR:INTERNAL=
+SH4LT_sh4lt-0.3_PREFIX:INTERNAL=
+SH4LT_sh4lt-0.3_VERSION:INTERNAL=
+__pkg_config_arguments_SH4LT:INTERNAL=REQUIRED;IMPORTED_TARGET;sh4lt-0.3
+__pkg_config_checked_SH4LT:INTERNAL=1
+//ADVANCED property for variable: pkgcfg_lib_SH4LT_sh4lt-0.3
+pkgcfg_lib_SH4LT_sh4lt-0.3-ADVANCED:INTERNAL=1
+prefix_result:INTERNAL=/usr/local/lib
 

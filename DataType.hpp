@@ -12,6 +12,7 @@ struct WindowPos {
 
 
 // Cartesian position in [x, y]
+// Yeah i think i dont need this cuz i need at and size instead lmao
 struct WindowPosCartesian {
     std::vector<int> topLeft; // top left point
     std::vector<int> topRight; // top right point
@@ -25,6 +26,7 @@ private:
     //Window pos in [at, size]
     WindowPos windowPos;
 
+    // Window pos in cartesian point 4 of em.
     WindowPosCartesian windowPosCartesian;
 
     std::string windowID;

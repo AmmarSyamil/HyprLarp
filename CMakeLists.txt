@@ -4,9 +4,14 @@ project(HyprLarp)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find required packages
 find_package(nlohmann_json 3.2.0 QUIET)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SH4LT REQUIRED IMPORTED_TARGET sh4lt-0.3)
+
+
 
 # If nlohmann_json is not found, try to fetch it
 if(NOT nlohmann_json_FOUND)
@@ -26,10 +31,11 @@ add_executable(hyprlarp
     tools.cpp
     DataType.cpp
     checkTerminal.cpp
+    videoRendering.cpp
 )
 
 # Link libraries
-target_link_libraries(hyprlarp PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(hyprlarp PRIVATE nlohmann_json::nlohmann_json PkgConfig::SH4LT)
 
 # Include directories if needed
 target_include_directories(hyprlarp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

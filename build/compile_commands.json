@@ -1,50 +1,56 @@
 [
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/main.cpp.o -c /home/sp/code/hyprlarp/main.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/main.cpp.o -c /home/sp/code/hyprlarp/main.cpp",
   "file": "/home/sp/code/hyprlarp/main.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/main.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/socketSend.cpp.o -c /home/sp/code/hyprlarp/socketSend.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/socketSend.cpp.o -c /home/sp/code/hyprlarp/socketSend.cpp",
   "file": "/home/sp/code/hyprlarp/socketSend.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/socketSend.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/socketReceive.cpp.o -c /home/sp/code/hyprlarp/socketReceive.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/socketReceive.cpp.o -c /home/sp/code/hyprlarp/socketReceive.cpp",
   "file": "/home/sp/code/hyprlarp/socketReceive.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/socketReceive.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/dataChecker.cpp.o -c /home/sp/code/hyprlarp/dataChecker.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/dataChecker.cpp.o -c /home/sp/code/hyprlarp/dataChecker.cpp",
   "file": "/home/sp/code/hyprlarp/dataChecker.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/dataChecker.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o -c /home/sp/code/hyprlarp/layoutWindow.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o -c /home/sp/code/hyprlarp/layoutWindow.cpp",
   "file": "/home/sp/code/hyprlarp/layoutWindow.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/layoutWindow.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/tools.cpp.o -c /home/sp/code/hyprlarp/tools.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/tools.cpp.o -c /home/sp/code/hyprlarp/tools.cpp",
   "file": "/home/sp/code/hyprlarp/tools.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/tools.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/DataType.cpp.o -c /home/sp/code/hyprlarp/DataType.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/DataType.cpp.o -c /home/sp/code/hyprlarp/DataType.cpp",
   "file": "/home/sp/code/hyprlarp/DataType.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/DataType.cpp.o"
 },
 {
   "directory": "/home/sp/code/hyprlarp/build",
-  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/checkTerminal.cpp.o -c /home/sp/code/hyprlarp/checkTerminal.cpp",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/checkTerminal.cpp.o -c /home/sp/code/hyprlarp/checkTerminal.cpp",
   "file": "/home/sp/code/hyprlarp/checkTerminal.cpp",
   "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/checkTerminal.cpp.o"
+},
+{
+  "directory": "/home/sp/code/hyprlarp/build",
+  "command": "/usr/bin/g++ -I/home/sp/code/hyprlarp -isystem /usr/local/include/sh4lt-0.3 -g -std=gnu++20 -Wall -Wextra -Wpedantic -o CMakeFiles/hyprlarp.dir/videoRendering.cpp.o -c /home/sp/code/hyprlarp/videoRendering.cpp",
+  "file": "/home/sp/code/hyprlarp/videoRendering.cpp",
+  "output": "/home/sp/code/hyprlarp/build/CMakeFiles/hyprlarp.dir/videoRendering.cpp.o"
 }
 ]

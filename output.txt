@@ -1,0 +1,11 @@
+0 1191 ms
+1 1099 ms
+2 1100 ms
+3 1096 ms
+4 1098 ms
+5 1096 ms
+6 1096 ms
+7 1098 ms
+8 1098 ms
+9 1099 ms
+ Total Elapsed Time: 1107 ms
