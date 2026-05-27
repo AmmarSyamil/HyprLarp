@@ -38,7 +38,7 @@ int queryPosWindow(const nlohmann::json data, const std::string& address, Window
 
 // Overload function of the query for the PID way of input
 // Output address of the window from input PID
-int queryWindowAddress(const nlohmann::json data, int address, std::string& output) {
+int queryWindowAddress(const nlohmann::json& data, int address, std::string& output) {
     bool found = false;
 
     for (const auto& jsonData: data) {
@@ -59,7 +59,7 @@ int queryWindowAddress(const nlohmann::json data, int address, std::string& outp
 
 //Overload from terminal window tittle name
 // Output address of the window from input tittle name
-int queryWindowAddress(const nlohmann::json data, std::string address, std::string& output) {
+int queryWindowAddress(const nlohmann::json& data, std::string address, std::string& output) {
     bool found = false;
 
     for (const auto& jsonData: data) {
@@ -192,41 +192,34 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 // }
 
 // Using PID address to find windows address
-int GetWindowAddress(pid_t address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
-    if (!data.has_value()) {
+int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr) {
+    if (!data) {
         nlohmann::json jsonData;
         if (GetWindowsPropertiesData(jsonData) != 0) {
             return 1;
         }
-        data = jsonData;
+        data = &jsonData;
     }
 
-    dataMutex.lock();
-    int result = queryWindowAddress(data.value(), address, outputData);
-    dataMutex.unlock();
+    // dataMutex.lock();
+    int result = queryWindowAddress(*data, address, outputData);
+    // dataMutex.unlock();
 
     return result;
 }
 
 //Function overload for windows tittle terminal
-int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, std::optional<nlohmann::json> data = std::nullopt) {
-    if (!data.has_value()) {
-        nlohmann::json jsonData;
-        
-        // Keknya ke return deh disini
-        // if (GetWindowsPropertiesData(jsonData) != 0) {
-        //     return 1;
-        // }
-        
-        GetWindowsPropertiesData(jsonData);
-
-        data = jsonData;
+int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data = nullptr) {
+    nlohmann::json localData;
+    if (!data) {
+        GetWindowsPropertiesData(localData);
+        data = &localData;
     }
 
-    // Use this wird add mutex
+    // Use this wierd add mutex
     {
         std::lock_guard<std::mutex> lock(dataMutex);
-        int result = queryWindowAddress(data.value(), address, outputData);
+        int result = queryWindowAddress(*data, address, outputData);
         
         return result;
     };
@@ -242,9 +235,9 @@ nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) 
     nlohmann::json output;
     for (const auto& jsonData: data) {
         if (jsonData["workspace"]["id"] == workspaceID) {
-            std::cout << jsonData["title"] << std::endl;
+            // std::cout << jsonData["title"] << std::endl;
 
-            output.emplace_back(jsonData["address"]);
+            output.emplace_back(jsonData);
         }
     }
 

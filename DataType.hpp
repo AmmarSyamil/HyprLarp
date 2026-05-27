@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include <unordered_set>
 
 struct WindowPos {
     std::vector<int> at;
@@ -44,6 +45,10 @@ private:
     WindowData(int windowType, std::string windowID, nlohmann::json& data);
 
     friend std::ostream& operator<<(std::ostream& os, const WindowData& wd);
+
+    const std::string& getWindowID() const {
+        return windowID;
+    }
 };
 
 class WorkspaceData {
@@ -73,6 +78,15 @@ public:
 
     // Fetch all windowID that have workspaceID and put it into windowData
     int FetchWindowID();
+
+    // function that check terminal of where the program is run and find its workspaceID
+    int setWorkspaceIDStartup();
+    
+
+
+
+    // Output all of the window ID that currently in the object windowData
+    std::unordered_set<std::string> currentWindowData();
 
     // refresh data
     // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.

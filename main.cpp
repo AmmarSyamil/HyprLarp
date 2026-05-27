@@ -31,10 +31,11 @@ int main() {
     // Get PID of the process
     // pid_t pid = getpid();
 
-
-
     // Get all terminal window from that workspace
+    std::cout << "initialize object done" << std::endl;
     Data.FetchWindowID();
+    // main terminal is mentioned twice
+    std::cout << "fetch window done" << std::endl;
 
     std::cout << Data;
 

@@ -13,6 +13,7 @@
 #include "layoutWindow.hpp"
 
 #include "checkTerminal.hpp"
+#include <unordered_set>
 
 
 // Constructor 
@@ -20,17 +21,13 @@ WorkspaceData::WorkspaceData() {
     // Pupulate the data part
     GetWindowsPropertiesData(WorkspaceData::data);
 
-    // Get new terminal window tittle name
-    std::string TerminalWindowTittleName = ChangeWindowTittleName();
+    // Change implementation to find main window
 
-    // Get main terminal window ID (address)
-    WorkspaceData::mainTerminalWindowID = WorkspaceData::windowID(TerminalWindowTittleName);
-    
-    // Set workspaceID to the main terminal window ID
-    this->WorkspaceID = WorkspaceData::FindWorkspaceID(this->mainTerminalWindowID);
+    WorkspaceData::setWorkspaceIDStartup();
 
     // Put main terminal window ID into windowData type in the array
-    InsertWindowData(this->mainTerminalWindowID, 1);
+    std::cout << std::endl << this->mainTerminalWindowID << std::endl;
+    WorkspaceData::InsertWindowData(this->mainTerminalWindowID, 1);
 }
 
 // Constructor function
@@ -75,9 +72,9 @@ std::string WorkspaceData::windowID(std::string TerminalWindowTittleName) {
     std::mutex socketSendMutex;
     std::string windowsAddress;
 
-    int socketSend = GetWindowAddress(TerminalWindowTittleName, socketSendMutex, windowsAddress);
+    int socketSend = GetWindowAddress(TerminalWindowTittleName, socketSendMutex, windowsAddress, &this->data);
 
-    if (socketSend==0) {
+    if (socketSend !=0) {
         throw std::runtime_error("Failed to found window tittle name");
     }
 
@@ -88,28 +85,41 @@ int WorkspaceData::FindWorkspaceID(std::string& windowID) {
     return queryWorkspaceId(this->data, windowID);
 } 
 
+// Function to insert a windowData to the workspaceData from window ID and window Type
 // window type {1: main, 0 : sub}
 int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
-    WindowData(windowType, windowID, this->data);
+    this->windowData.emplace_back(WindowData(windowType, windowID, this->data));
+    std::cout << "test" << std::endl;
     return 1;
 }
 
 // Fetch all terminal windowID that have workspaceID
 // Output of vector from windowID
 int WorkspaceData::FetchWindowID() {
-    // First find the current workspace ID done
-    // Then from the data recursive loop to find which window ID have that workspace id
-    // then check if its a terminal or not
-    // i have to make terminal checker which idk how
+    std::unordered_set<std::string> currentWindow = WorkspaceData::currentWindowData();
 
     for (const auto& jsonData: GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
-        if (IsPIDTerminal(jsonData["pid"]) == 1) {
+        if (IsPIDTerminal(jsonData["pid"]) == 1 and !currentWindow.count(jsonData["address"])) {
             // I think i need to change the normal json data into the window data format.
             this->windowData.emplace_back(0, jsonData["address"], this->data);
         }
     }
 
+    return 1;
+
 };
+
+std::unordered_set<std::string> WorkspaceData::currentWindowData() {
+    std::unordered_set<std::string> output;
+    
+    for (const auto& i: this->windowData) {
+
+        output.insert(i.getWindowID());   
+    }
+
+    return output;
+};
+
 
 static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
     os << "[";
@@ -175,3 +185,34 @@ std::ostream& operator<<(std::ostream& os, const WorkspaceData& ws) {
 
     return os;
 }
+
+
+int WorkspaceData::setWorkspaceIDStartup() {
+
+    // Old implementation
+    // std::string TerminalWindowTittleName = ChangeWindowTittleName();
+
+    // // Get main terminal window ID (address)
+    // this->mainTerminalWindowID = WorkspaceData::windowID(TerminalWindowTittleName);
+    
+
+    // // Set workspaceID to the main terminal window ID
+    // this->WorkspaceID = WorkspaceData::FindWorkspaceID(this->mainTerminalWindowID);
+
+    // New implementation
+    pid_t pid = FindTerminalPID();
+    std::cout << "terminal pid found is : " << pid << std::endl;
+    if (pid != -1) {
+        // I neeed to convert it first from PID into thw window ID
+
+        GetWindowAddress(pid, this->mainTerminalWindowID, &this->data);
+
+        this->WorkspaceID = WorkspaceData::FindWorkspaceID(this->mainTerminalWindowID);
+        return 1;
+    };
+
+    std::runtime_error("cant fine main terminal");
+    return 0;
+
+};
+
