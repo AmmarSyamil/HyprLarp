@@ -33,6 +33,10 @@ How to make it like simultinuesly render?
 1. Decoder : 
 2. 
 
+What to find out?
+- YUV
+-  
+
 How can i crop the video then?
 mpv --vf=crop=width:height:x_offset:y_offset video.mp4
 
@@ -43,7 +47,7 @@ mpv --vo=kitty --vo-kitty-use-shm=yes --osc=no --osd-level=0 --profile=sw-fast -
 current implementation for like suitable shitthingy :
 - instead of each running kity mpv, one decode and other refernce the memory
 - propable use https://gitlab.com/sh4lt/sh4lt
-
+- idk help me
 
 dumping stuffs
 
@@ -58,3 +62,15 @@ File type:
 - [position, size]
 - tittle name
 - workspace id
+
+
+Summary of the deep research report from chatgptdih:
+-  OKAY MY PROJECT IS LIKE 20% done , what the fuck is this
+
+
+Things that i need to keep an i out :
+1. Kitty rendering : Kitty default on using cursor for image location i think but thres alternative using : direct grid positioning, and absolute windows/placement
+2. Kitty rendering : kitty normaly render at column x rows location, but we can get more precuse down to pixel by 
+3. Producer checker : implement heartbeat to determine if producer is dead or not to tell client that it shoudl abort if producer dead cuz why
+4. implementation consideration : NUMA device ? check point 12.4 on kitty video pipeline pdf
+5. Cache / optimization : at point 12.2 see file cache behaviour improvement

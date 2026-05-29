@@ -7,7 +7,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "PkgConfig::SH4LT::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-PkgConfig__SH4LT-Debug-911350bd13b350840947.json",
+					"jsonFile" : "target-PkgConfig__SH4LT-Debug-a6dcb560d3cb35dc8c4c.json",
 					"name" : "PkgConfig::SH4LT",
 					"projectIndex" : 0
 				},
@@ -66,7 +66,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "hyprlarp::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-hyprlarp-Debug-0080615b0c9da7ec3a27.json",
+					"jsonFile" : "target-hyprlarp-Debug-3431a1eeb6ed574db6fe.json",
 					"name" : "hyprlarp",
 					"projectIndex" : 0
 				}

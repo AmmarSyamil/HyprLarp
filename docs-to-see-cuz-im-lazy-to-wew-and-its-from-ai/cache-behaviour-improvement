@@ -1,0 +1,64 @@
+To understand this section, we need to uncover another optimization "trick" the operating system uses behind your back.
+
+When you ask the operating system for a chunk of memory using `mmap()`, the OS is incredibly lazy. It doesn't actually go to your physical RAM sticks and allocate the memory right away. Instead, it just makes a note in its records saying, *"If this program ever actually touches this memory address, I will go find real RAM for it."* This optimization technique is known as **Lazy Allocation** (or Demand Paging). While it makes opening files and allocating memory instant, it introduces a hidden performance trap called **Page Faults** when you actually start playing video.
+
+---
+
+### 1. The Problem: The First-Access Stall
+
+Operating systems manage RAM in fixed blocks called **Pages**, which are almost universally **4,096 bytes (4KB)** in size on modern Linux systems.
+
+A 17MB shared memory ring buffer spans roughly 4,150 of these pages.
+
+When your program boots up and calls `mmap()`, it receives a virtual memory pointer. But the physical RAM behind it doesn't exist yet. The first time your video decoder tries to copy a frame into that memory:
+
+1. The CPU tries to write pixels to page 1.
+2. The CPU realizes there is no real physical RAM mapped to this virtual address. It abruptly pauses your program and flashes a distress signal to the Linux Kernel called a **Page Fault**.
+3. The Linux Kernel wakes up, halts everything, allocates a physical 4KB block of RAM, updates the CPU's internal page table maps, and hands control back to your program.
+4. A microsecond later, your program finishes copying 4KB of data and crosses over into page 2.
+5. **Boom.** Another Page Fault. The kernel halts your program again.
+
+This process repeats **4,000+ times** across your 17MB buffer. This sudden flurry of context switching between your application and the operating system kernel can stall your video pipeline for **10 to 100 milliseconds** right as the video starts playing. In a real-time system, a 100ms stall means dropping 3 entire frames of video right out of the gate, causing a jarring stutter at startup.
+
+---
+
+### 2. The Solution: "Warming Up" the Memory (Pre-Faulting)
+
+To prevent your video from stuttering at startup, the code implements a **mmap warm-up loop**. It deliberately forces all 4,000+ page faults to happen *before* the video playback loop begins.
+
+Let's dissect the code provided:
+
+```cpp
+uint8_t* p = static_cast<uint8_t*>(shm_ptr);
+for (size_t i = 0; i < shm_size; i += 4096) {
+    volatile uint8_t x = p[i]; // volatile prevents the compiler from optimizing this away
+    (void)x;
+}
+
+```
+
+* `i += 4096`: Instead of reading every single byte, the loop leaps forward by 4,096 bytes on every iteration. This ensures it lands precisely once on **every single memory page** in the buffer.
+* `volatile uint8_t x = p[i];`: The `volatile` keyword is absolutely mandatory here. It tells the compiler: *"Do not try to optimize this line out."* Without `volatile`, a smart C++ compiler would look at this loop, realize that you are reading a variable (`x`) and immediately throwing it away (`(void)x`), and completely delete the entire loop from the compiled application. `volatile` forces the CPU to actually execute the read instruction.
+* **The Result:** This dummy loop purposefully triggers all 4,000 page faults back-to-back during your program's initialization phase. The Linux kernel is forced to fully provision and wire up all 17MB of physical RAM. By the time your video pipeline officially starts, every single page is already mapped, and `memcpy` can run at full hardware speeds without a single interruption.
+
+---
+
+### 3. Alternative Solution: `mlock` (Locking Memory in RAM)
+
+The text mentions a second, even more robust alternative:
+
+```cpp
+mlock(shm_ptr, shm_size);
+
+```
+
+When a system gets low on RAM, the Linux Kernel will sometimes take memory pages belonging to idle programs and move them onto your hard drive/SSD to free up space (this is called **Swapping** or Paging Out).
+
+If Linux decides to swap your video pipeline's shared memory buffer onto disk because a user briefly paused the video, the next time the video plays, the CPU will hit a **Major Page Fault**. Your program will completely freeze while the operating system slowly reads the video buffer back off your hard drive.
+
+Calling `mlock()` does two things:
+
+1. It instantly **pre-faults** the entire memory region (allocating all physical pages immediately, identical to the warm-up loop).
+2. It tells the Linux Kernel: *"This memory is hyper-critical for real-time performance. Pin it directly to the physical silicon RAM chips and **never** move it to the hard drive, no matter how low on memory the system gets."*
+
+**The Catch:** Because memory is a finite resource, locking RAM can starve other processes. Therefore, Linux prevents regular programs from calling `mlock()` by default. To use it, your program must have administrator privileges (`CAP_IPC_LOCK`) or the user must explicitly lift the memory restrictions in the system settings (`ulimit -l`). If those permissions aren't available, the `volatile` warm-up loop is your best cross-platform guarantee for smooth startup playback.
