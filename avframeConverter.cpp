@@ -111,7 +111,7 @@ int main() {
     // =========================================================================
     av_frame_free(&frame);
     av_packet_free(&packet);
-    av_codec_free_context(&codec_ctx);
+    avcodec_free_context(&codec_ctx);
     avformat_close_input(&format_ctx);
 
     std::cout << "Finished decoding successfully." << std::endl;

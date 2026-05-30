@@ -74,3 +74,6 @@ Things that i need to keep an i out :
 3. Producer checker : implement heartbeat to determine if producer is dead or not to tell client that it shoudl abort if producer dead cuz why
 4. implementation consideration : NUMA device ? check point 12.4 on kitty video pipeline pdf
 5. Cache / optimization : at point 12.2 see file cache behaviour improvement
+
+Improvement:
+1. in videodecoder.hpp in converter funciton, we can change the av image alloc last parameter to 32, but that recuire tweeking.
