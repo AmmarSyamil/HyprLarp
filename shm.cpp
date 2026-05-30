@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 
 extern "C" {
 #include <sys/mman.h>
@@ -40,3 +41,8 @@ int exitSHM(void* addr, int data_size) {
 }
 
 // Function to put file into SHM
+int putSHM(uint8_t* shmPtr,const void* data, size_t data_size) {
+    memcpy(shmPtr, data, data_size);
+
+    return 1;
+}

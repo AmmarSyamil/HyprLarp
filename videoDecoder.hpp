@@ -60,9 +60,12 @@ public:
         SwsContext* dataContext;
         int RGBA = sws_scale(dataContext, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
 
-        // send to shm
+        // create SHM
         shm = createSHM(data_length);
         if (shm == NULL) return -1;
+
+        // Put data inside the SHM
+        putSHM(shm, dstData[0], frame->width * frame->height * 4);
 
         // Cleanup
         av_freep(&dstData[0]);
