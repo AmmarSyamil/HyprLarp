@@ -6,13 +6,17 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 }
 
 #include "videoDecoder.hpp"
-
+#include "shm.hpp"
 
 // Function to output VideoFrameData
-int decodeVideo(VideoDecoder decoder, VideoFrameData frame) {
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
     while (decoder.read_next_frame(&frame)) {
         std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
     }
@@ -21,7 +25,7 @@ int decodeVideo(VideoDecoder decoder, VideoFrameData frame) {
 }
 
 // Overload function for spesific frame to get
-int decodeVideo(VideoDecoder decoder, VideoFrameData frame, int desired_frame) {
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame) {
     while (decoder.read_next_frame(&frame)) {
         if (frame.frame_index == desired_frame) {
             std::cout << "Successfully isolated frame " << desired_frame << "!\n";
@@ -31,7 +35,7 @@ int decodeVideo(VideoDecoder decoder, VideoFrameData frame, int desired_frame) {
             std::cout << "Not this one." << std::endl;
         }
     }
-    
+    std::cout << "decode video done" << std::endl;
     return 1;
 }
 

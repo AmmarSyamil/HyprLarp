@@ -6,6 +6,8 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
 }
 
 #include "shm.hpp"
@@ -33,7 +35,9 @@ private:
     int video_stream_idx = -1;
     int frame_counter = 0;
 
-    uint8_t* shm{};
+    
+
+    uint8_t* shm = nullptr;
 
     uint8_t RGBAData{};
 
@@ -44,7 +48,16 @@ private:
         }
     }
 
+    void cleanupSHM() {
+        if (shm && codec_ctx) {
+            int image_size = codec_ctx->width * codec_ctx->height * 4;
+            exitSHM(shm, image_size);
+            shm = nullptr;
+        }
+    }
+
 public:
+
     VideoDecoder() = default;
     
     // Automatically close resources if the object falls out of scope
@@ -53,23 +66,59 @@ public:
     }
 
     // Function to convert YUV420P to RGBA
-    int converter() {
-        uint8_t* dstData[4]; // Current Data
-        int dstLinesize[4];
-        int data_length = av_image_alloc(dstData, dstLinesize, frame->width, frame->height, AV_PIX_FMT_RGBA, 1);
-        SwsContext* dataContext;
-        int RGBA = sws_scale(dataContext, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
+    int converterNsendSHM() {
+        int width = codec_ctx->width;
+        int height = codec_ctx->height;
+        int image_size = width * height * 4;
+        uint8_t* dstData[4] = { nullptr };
+        int dstLinesize[4] = { 0 };
 
-        // create SHM
-        shm = createSHM(data_length);
-        if (shm == NULL) return -1;
+        // Allocate local temporary buffer
+        int data_length = av_image_alloc(dstData, dstLinesize, width, height, AV_PIX_FMT_RGBA, 1);
+
+        std::cout << "Frame Width: " << width << ", Height: " << height << std::endl;
+
+        if (data_length < 1) std::cerr << "Failed to allocate memory" << std::endl;
+        
+        // Set up context 
+        SwsContext* dataContext = sws_getContext(
+            width, height, (AVPixelFormat)frame->format, // Source details
+            width, height, AV_PIX_FMT_RGBA,            // Target details
+            SWS_BILINEAR, nullptr, nullptr, nullptr                  // Filters (Not used for color space swapping)
+        );        
+        
+        if (!dataContext) {
+            std::cerr << "Failed to create SwsContext" << std::endl;
+            av_freep(&dstData[0]);
+            return -1;
+        };
+
+        // Perform scaling conversion
+        sws_scale(dataContext, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
+
+        // Reset SHM
+        cleanupSHM();
+
+        // Create SHM thingy
+        shm = createSHM(image_size, width, height);
+        if (!shm) {
+            std::cerr << "Failed to create SHM segment" << std::endl;
+            sws_freeContext(dataContext);
+            av_freep(&dstData);
+            return -1;
+        }
 
         // Put data inside the SHM
-        putSHM(shm, dstData[0], frame->width * frame->height * 4);
+        putSHM(shm, dstData[0], image_size);
+
+        //Test SHM
+        testSHM(data_length, width, height);
 
         // Cleanup
         av_freep(&dstData[0]);
         sws_freeContext(dataContext);
+
+        return 0;
     } 
 
     // Opens file and allocates processing memory
@@ -118,7 +167,6 @@ public:
                         return false; // Error decoding
                     }
 
-                    // --- POPULATE OUTPUT DATA DATA STRUCTURE ---
                     frame_counter++;
                     out_data->width = frame->width;
                     out_data->height = frame->height;
@@ -134,12 +182,16 @@ public:
                     out_data->u_plane.resize(uv_width * uv_height);
                     out_data->v_plane.resize(uv_width * uv_height);
 
-
+                    
+                    
                     // Strip padding out of linesize while transferring data to pointers
                     copy_plane(frame->data[0], frame->linesize[0], out_data->y_plane.data(), frame->width, frame->height);
                     copy_plane(frame->data[1], frame->linesize[1], out_data->u_plane.data(), uv_width, uv_height);
                     copy_plane(frame->data[2], frame->linesize[2], out_data->v_plane.data(), uv_width, uv_height);
-
+                    
+                    //Convert 
+                    converterNsendSHM();
+ 
                     // Cleanup loop instances
                     av_frame_unref(frame);
                     av_packet_unref(packet);
@@ -157,10 +209,26 @@ public:
     };
 
     void close() {
-        if (frame) av_frame_free(&frame);
-        if (packet) av_packet_free(&packet);
-        if (codec_ctx) avcodec_free_context(&codec_ctx);
-        if (format_ctx) avformat_close_input(&format_ctx);
-        if (shm) exitSHM(shm, frame->width * frame->height *4); // Hopefully my maths is right
+        cleanupSHM(); // Always clean SHM first
+
+        if (frame) { 
+            av_frame_free(&frame); 
+            frame = nullptr; 
+        }
+        
+        if (packet) {
+            av_packet_free(&packet); 
+            packet = nullptr; 
+        }
+        
+        if (codec_ctx) { 
+            avcodec_free_context(&codec_ctx); 
+            codec_ctx = nullptr; 
+        }
+        
+        if (format_ctx) { 
+            avformat_close_input(&format_ctx); 
+            format_ctx = nullptr; 
+        }
     }
 };
