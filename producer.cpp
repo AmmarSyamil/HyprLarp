@@ -15,6 +15,9 @@ extern "C" {
 #include "videoDecoder.hpp"
 #include "shm.hpp"
 
+// idk header
+
+
 // Function to output VideoFrameData
 int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
     while (decoder.read_next_frame(&frame)) {
@@ -55,5 +58,17 @@ int main() {
 
     std::cout << decoder.numberofFrame() << std::endl;
 
+    std::string t = "m";
+
+
+    // Tester to consumer
+    while (t == "m") {
+        std::cin >> t;
+    };
+
+    deleteSHM();
+
     return 0;
 }
+
+// gcc -g -o producer producer.cpp videoDecoder.hpp shm.cpp shm.hpp -lstdc++ -pthread -lavformat -lavcodec -lavutil -lswscale

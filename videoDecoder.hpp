@@ -12,6 +12,13 @@ extern "C" {
 
 #include "shm.hpp"
 
+// Video header
+struct VideoHeader {
+    int width =0;
+    int height;
+    int image_size;
+};
+
 // A clean C++ struct to hold the exported raw pixel planes
 struct VideoFrameData {
     int width = 0;
@@ -96,15 +103,22 @@ public:
         // Perform scaling conversion
         sws_scale(dataContext, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
 
-        // Reset SHM
-        cleanupSHM();
+        // // Reset SHM
+        // cleanupSHM();
 
-        // Create SHM thingy
-        shm = createSHM(image_size, width, height);
+        // // Create SHM thingy
+        // shm = openSHM();
+        // if (!shm) {
+        //     std::cerr << "Failed to create SHM segment" << std::endl;
+        //     sws_freeContext(dataContext);
+        //     av_freep(&dstData);
+        //     return -1;
+        // }
+        
         if (!shm) {
-            std::cerr << "Failed to create SHM segment" << std::endl;
+            std::cerr << "SHM pointer is null!" << std::endl;
+            av_freep(&dstData[0]);
             sws_freeContext(dataContext);
-            av_freep(&dstData);
             return -1;
         }
 
@@ -147,8 +161,20 @@ public:
         frame_counter = 0;
         numberFrame = format_ctx->streams[video_stream_idx]->nb_frames;
 
-        return true;
-    }
+
+        // Setup SHM
+        int width = codec_ctx->width;
+        int height = codec_ctx->height;
+        int image_size = width * height * 4; // RGBA size
+
+        shm = createSHM(image_size, width, height);
+        if (!shm) {
+            std::cerr << "Failed to allocate initialization SHM" << std::endl;
+            close(); // Clean up allocated FFmpeg resources
+            return false;
+        }
+            return true;
+        }
 
     // Pulls the next available frame out of the pipeline
     bool read_next_frame(VideoFrameData* out_data) {
