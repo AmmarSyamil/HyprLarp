@@ -1,3 +1,4 @@
+// Producer.cpp
 #include <iostream>
 #include <vector>
 #include <string>
@@ -44,10 +45,15 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame)
 
 int main() {
     VideoDecoder decoder;
-    if (!decoder.open("video.mp4")) {
+    bool decode_open = decoder.open("video.mp4");
+    // if (!decoder.open("video.mp4")) {
+        // std::cout << "failed" << std::endl;
+        // return -1;
+    // };
+    if (!decode_open) {
         std::cout << "failed" << std::endl;
         return -1;
-    };
+    }
 
     std::cout << "start" << std::endl;
 
@@ -58,14 +64,19 @@ int main() {
 
     std::cout << decoder.numberofFrame() << std::endl;
 
-    std::string t = "m";
-
-
+    
+    
     // Tester to consumer
+    std::string t = "m";
     while (t == "m") {
-        std::cin >> t;
-    };
+        if (!(std::cin >> t)) {
+            while (true) {
+                sleep(2);
+            }
+        }
+    }
 
+    std::cout << "SHM deleted" << std::endl;
     deleteSHM();
 
     return 0;

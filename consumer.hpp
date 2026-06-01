@@ -1,4 +1,5 @@
 // File contain the implementation in the client/consumer which is the terminal
+// consumer.hpp
 #pragma once
 
 #include <iostream>
@@ -13,6 +14,7 @@ extern "C" {
 #include <fcntl.h>
 #include <unistd.h>
 }
+#include "videoDecoder.hpp"
 
 class consumer
 {
@@ -26,7 +28,12 @@ private:
 
 public:
     int displayImage() {
-        escSequence(width, height, SHMfileName);
+        if (width == 0 || height == 0) {
+            std::cerr << "dispalyImage : unvalid width and height" << std::endl;
+            return -1;
+        }
+
+        escSequence(width, height, image_size, SHMfileName);
         std::cout << "displayImage : escSequences runned" << std::endl;
 
         return 1;
@@ -41,10 +48,16 @@ public:
         return 1;
     }
 
-
     consumer() {
-        shmPtr = openSHM();
         getImageData();
-        displayImage();
+        shmPtr = openSHM();
+        // displayImage();
+    }
+
+    ~consumer() {
+        if (shmPtr) {
+            size_t total_mapped_size = sizeof(VideoHeader) + image_size;
+            exitSHM(shmPtr, total_mapped_size);
+        }
     }
 };
