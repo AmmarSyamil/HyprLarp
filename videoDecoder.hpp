@@ -167,7 +167,7 @@ public:
         int height = codec_ctx->height;
         int image_size = width * height * 4; // RGBA size
 
-        shm = createSHM(image_size, width, height);
+        shm = createSHM(image_size, width, height, "vp_static");
         if (!shm) {
             std::cerr << "Failed to allocate initialization SHM" << std::endl;
             close(); // Clean up allocated FFmpeg resources

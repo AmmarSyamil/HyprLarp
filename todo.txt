@@ -21,8 +21,10 @@ zamn idk where to start
 (V). USE PID INSTEAD of tittle shit to find window ID
 16. Implement the  correct naming of the SHM
 17. in getImageSHM fix the vector return error thingy.
-18. Add implementation of custom Base64 for custum SHM name cuz im lazy rn
-
+(V). Add implementation of custom Base64 for custum SHM name cuz im lazy rn
+19. add implementation of the dynamic resolution video cuz im very lazy and hungry rn
+20. ADD delete of the SHM File of the consumer.cpp 
+21. fix SHM not deleting at exit
 
 
 video :
@@ -43,7 +45,7 @@ What to find out?
 How can i crop the video then?
 mpv --vf=crop=width:height:x_offset:y_offset video.mp4
 
-comman mpv : 
+command mpv : 
 mpv --vo=kitty --vo-kitty-use-shm=yes --osc=no --osd-level=0 --profile=sw-fast --really-quiet video.mp4
 
 

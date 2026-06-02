@@ -2,4 +2,4 @@
 
 #include <iostream>
 
-int escSequence(int width, int height, int image_size, std::string imageSHM);
+int escSequence(int width, int height, int image_size, const char * imageSHM);

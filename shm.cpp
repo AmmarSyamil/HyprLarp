@@ -18,6 +18,7 @@ extern "C" {
 
 #include "videoDecoder.hpp"
 
+//For main SHM
 int testSHM(int image_size, int width, int height) {
     int fd = shm_open("/vp_static", O_RDONLY, 0644);
 
@@ -94,8 +95,10 @@ uint8_t* openSHM() {
     return static_cast<uint8_t*>(genericPtr); // returning in uint8_t pointer form
 }
 
-uint8_t* createSHM(int data_length, int width, int height) {
-    int fd = shm_open("/vp_static", O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
+
+// Create SHM
+uint8_t* createSHM(int data_length, int width, int height, const char * SHMfilename) {
+    int fd = shm_open(SHMfilename, O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
     if (fd == -1) {
         std::cerr <<"Error at createSHM : failed to create/open shm" << std::endl;
         return nullptr;
@@ -137,7 +140,7 @@ int exitSHM(void* addr, int data_size) {
 }
 
 
-
+// Get image data from the main SHM (might change implementation due to dynamic video resolution)
 std::vector<int> getImageSHM() {
     int fd = shm_open("/vp_static", O_RDONLY, 0644);
     if (fd == -1) {
@@ -178,7 +181,7 @@ int deleteSHM() {
 };
 
 // Function to put file into SHM
-int putSHM(uint8_t* shmPtr,const void* data, size_t data_size) {
+int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
     if (!shmPtr || !data_size) {
         std::cerr << "putSHM : SHM pointer invalid" << std::endl;
     }
