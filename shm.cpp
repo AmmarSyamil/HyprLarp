@@ -18,12 +18,13 @@ extern "C" {
 
 #include "videoDecoder.hpp"
 
-//For main SHM
-int testSHM(int image_size, int width, int height) {
-    int fd = shm_open("/vp_static", O_RDONLY, 0644);
+//For main SHM - Testing if pixel data is readable
+int testSHM(int image_size, int width, int height, std::string shmFileName) {
+    int fd = shm_open(shmFileName.c_str(), O_RDONLY, 0644);
 
     
-    size_t total_size = sizeof(VideoHeader) + image_size;
+    // When testing display SHMs, they have NO header (created with create_header=false)
+    size_t total_size = image_size;  // SHM contains only pixel data
     
     
     void* ptr = mmap(NULL, total_size, PROT_READ, MAP_SHARED, fd, 0);
@@ -33,7 +34,8 @@ int testSHM(int image_size, int width, int height) {
         return -1;
     }
     
-    uint8_t* pixelData = static_cast<uint8_t*>(ptr) + sizeof(VideoHeader);
+    uint8_t* pixelData = static_cast<uint8_t*>(ptr);  // No offset needed for display SHMs
+    std::cout   << "First pixel byte: " << (int)pixelData[0] << std::endl;
 
     std::ofstream outFile("test_frame.ppm", std::ios::out | std::ios::binary);
     if (!outFile) {
@@ -58,7 +60,7 @@ int testSHM(int image_size, int width, int height) {
     return 1;
 } 
 
-// Function to open SHM / for consumer
+// Function to open producer SHM / for consumer
 uint8_t* openSHM() {
     int fd = shm_open("/vp_static", O_RDWR, 0600); // 0600 = read write acces to current
     if (fd == -1) {
@@ -97,14 +99,31 @@ uint8_t* openSHM() {
 
 
 // Create SHM
-uint8_t* createSHM(int data_length, int width, int height, const char * SHMfilename) {
-    int fd = shm_open(SHMfilename, O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
+// NOTE: When create_header=false, creates SHM with ONLY pixel data (for Kitty display)
+//       When create_header=true, creates SHM with VideoHeader + pixel data (for metadata)
+// For Kitty graphics protocol, we must NOT include header in display SHMs
+// IMPORTANT: Returns pointer to pixel data area, skipping header if present
+uint8_t* createSHM(int data_length, int width, int height, const std::string& SHMfilename, bool create_header) {
+    // Validate inputs
+    if (data_length <= 0 || width <= 0 || height <= 0) {
+        std::cerr << "createSHM: Invalid dimensions - data_length=" << data_length 
+                  << ", width=" << width << ", height=" << height << std::endl;
+        return nullptr;
+    }
+    
+    // For main SHM, unlink old one first to ensure clean state
+    if (create_header && SHMfilename == "/vp_static") {
+        shm_unlink(SHMfilename.c_str());
+        std::cerr << "createSHM: Unlinked old " << SHMfilename << std::endl;
+    }
+    
+    int fd = shm_open(SHMfilename.c_str(), O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
     if (fd == -1) {
         std::cerr <<"Error at createSHM : failed to create/open shm" << std::endl;
         return nullptr;
     }
     
-    size_t total_size = sizeof(VideoHeader) + data_length;
+    size_t total_size = (create_header ? sizeof(VideoHeader) : 0) + data_length;
     ftruncate(fd, total_size);
     void* genericPtr = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (genericPtr == MAP_FAILED) {
@@ -113,13 +132,26 @@ uint8_t* createSHM(int data_length, int width, int height, const char * SHMfilen
         return nullptr;
     }
 
-    VideoHeader* header = static_cast<VideoHeader*>(genericPtr);
-    header->width = width;
-    header->height = height;
-    header->image_size = data_length;
+    // Zero-initialize the entire SHM to prevent garbage data
+    memset(genericPtr, 0, total_size);
+    
+    if (create_header) {
+        VideoHeader* header = static_cast<VideoHeader*>(genericPtr);
+        header->width = width;
+        header->height = height;
+        header->image_size = data_length;
+        
+        std::cerr << "createSHM: Wrote header to " << SHMfilename << " - width=" << width 
+                  << ", height=" << height << ", image_size=" << data_length << std::endl;
+        
+        close(fd);
+        // Return pointer to pixel data area (skip header)
+        return static_cast<uint8_t*>(genericPtr) + sizeof(VideoHeader);
+    }
     
     close(fd);
-    return static_cast<uint8_t*>(genericPtr);;
+    // For display SHMs, return pointer to start (no header)
+    return static_cast<uint8_t*>(genericPtr);
 }
 
 // Function to unlink the SHM
@@ -145,13 +177,22 @@ std::vector<int> getImageSHM() {
     int fd = shm_open("/vp_static", O_RDONLY, 0644);
     if (fd == -1) {
         std::cerr << "getImageSHM: Could not open SHM (from file descriptor)" << std::endl;
-        return {0, 0, 0};
+        return {0, 0, 0, 0};
     }
     
     struct stat dataStat;
-    if (fstat(fd, &dataStat) == -1 || dataStat.st_size < sizeof(VideoHeader)) {
-        std::cerr << "getImageSHM : Shared memory is not initialize or too small" << std::endl;
-        return {0, 0, 0};
+    if (fstat(fd, &dataStat) == -1) {
+        std::cerr << "getImageSHM: fstat failed" << std::endl;
+        close(fd);
+        return {0, 0, 0, 0};
+    }
+    
+    std::cerr << "getImageSHM: /vp_static size = " << dataStat.st_size << " bytes, VideoHeader size = " << sizeof(VideoHeader) << std::endl;
+    
+    if (dataStat.st_size < sizeof(VideoHeader)) {
+        std::cerr << "getImageSHM: Shared memory is not initialized or too small" << std::endl;
+        close(fd);
+        return {0, 0, 0, 0};
     }
 
     size_t header_size = sizeof(VideoHeader);
@@ -159,9 +200,8 @@ std::vector<int> getImageSHM() {
     close(fd);
 
     if (headerPtr == MAP_FAILED) {
-        std::cerr << "getImageSHM : mmap failed" << std::endl;
-        // close(fd);
-        return {0 , 0, 0};
+        std::cerr << "getImageSHM: mmap failed" << std::endl;
+        return {0, 0, 0, 0};
     }
 
     VideoHeader* data_ptr = static_cast<VideoHeader*>(headerPtr);
@@ -169,9 +209,20 @@ std::vector<int> getImageSHM() {
     int width = data_ptr->width;
     int height = data_ptr->height;
     int image_size = data_ptr->image_size;
+    int videoHeaderSize = header_size;
+    
+    // Debug: print raw bytes
+    std::cerr << "getImageSHM: Raw header bytes (first 12): ";
+    uint8_t* raw = static_cast<uint8_t*>(headerPtr);
+    for (int i = 0; i < 12 && i < header_size; i++) {
+        fprintf(stderr, "%02x ", raw[i]);
+    }
+    fprintf(stderr, "\n");
+    
+    std::cerr << "getImageSHM: width=" << width << ", height=" << height << ", image_size=" << image_size << std::endl;
 
     munmap(headerPtr, header_size);
-    return {width, height, image_size};
+    return {width, height, image_size, videoHeaderSize};
 }
 
 // Function to delete the SHM
@@ -181,18 +232,16 @@ int deleteSHM() {
 };
 
 // Function to put file into SHM
+// IMPORTANT: Now writing directly at offset 0 (no header offset needed)
 int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
     if (!shmPtr || !data_size) {
         std::cerr << "putSHM : SHM pointer invalid" << std::endl;
     }
 
-    // Header
-    uint8_t* pixel_destination = shmPtr + sizeof(VideoHeader);
-
     std::cout << "putSHM : pre memcpy" << std::endl;
 
-    // Data
-    memcpy(pixel_destination, data, data_size); // cause memory error
+    // Data written directly at offset 0 (Kitty reads from here)
+    memcpy(shmPtr, data, data_size);
 
     std::cout << "putSHM : post memcpy" << std::endl;
 

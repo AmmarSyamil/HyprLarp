@@ -126,7 +126,7 @@ public:
         putSHM(shm, dstData[0], image_size);
 
         //Test SHM
-        testSHM(data_length, width, height);
+        testSHM(data_length, width, height, "vp_static");
 
         // Cleanup
         av_freep(&dstData[0]);
@@ -162,12 +162,12 @@ public:
         numberFrame = format_ctx->streams[video_stream_idx]->nb_frames;
 
 
-        // Setup SHM
+        // Setup SHM with header for metadata
         int width = codec_ctx->width;
         int height = codec_ctx->height;
         int image_size = width * height * 4; // RGBA size
 
-        shm = createSHM(image_size, width, height, "vp_static");
+        shm = createSHM(image_size, width, height, "/vp_static", true);  // true = with header
         if (!shm) {
             std::cerr << "Failed to allocate initialization SHM" << std::endl;
             close(); // Clean up allocated FFmpeg resources
