@@ -26,7 +26,6 @@ private:
     int width = 0;
     int height = 0;
     int image_size = 0;
-    int currentFrame = 0;
     int pid = 0;
     int frame = 0;
     int videoHeaderSize = 0;
@@ -34,26 +33,26 @@ private:
 public:
 
     // Create unique filename for SHM to differenciate SHM file from different frame and different terminal
-    int setupSHMfileName() {
+    int setupSHMfileName(int currectFrame) {
         // initialize pid so the generated name matches the current process
         pid = getpid();
-        std::string fileNameSHM = "/HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
+        frame = currectFrame;
+        std::string fileNameSHM = "HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
 
         SHMfileName = fileNameSHM;
         std::cout << "setupSHMfileName : " << SHMfileName << std::endl;
 
-
         return 1;
     }
 
-    // Function to setup the SHM recuire each frame
+    // Function to create the SHM recuire each frame
     int setupSHM() {
         std::cout << "pre setupSHM : " << SHMfileName  << std::endl;
         // Create display SHM WITHOUT header (for Kitty graphics protocol)
         shmPtr = createSHM(image_size, width, height, SHMfileName, false);
         std::cout << "post setupSHM : " << SHMfileName << std::endl;
 
-        std::string real_path = "/dev/shm/" + SHMfileName.substr(1);
+        std::string real_path = "/dev/shm/" + SHMfileName;
     
         if (std::filesystem::exists(real_path)) {
             std::cout << "The file exists at " << real_path << " right now!" << std::endl;
@@ -65,17 +64,22 @@ public:
     }
 
     int populateSHM() {
+
+        // Check if main / producer SHM pointer exist
         if (!ProducerSHMPtr) {
             std::cerr << "populateSHM: Producer SHM pointer is null" << std::endl;
             return -1;
         }
 
         // ProducerSHMPtr points to mapping start (VideoHeader). Advance to pixel data.
-        putSHM(shmPtr, ProducerSHMPtr + sizeof(VideoHeader), image_size);
+        if (putSHM(shmPtr, ProducerSHMPtr + sizeof(VideoHeader), image_size) == -1) {
+            std::cerr << "populateSHM : cant put data into the SHM" << std::endl;
+        }
 
         return 1;
     }
 
+    // Function to display the image of the SHM
     int displayImage() {
         if (width == 0 || height == 0) {
             std::cerr << "dispalyImage : unvalid width and height" << std::endl;
@@ -83,7 +87,7 @@ public:
         }
 
         // Check SHM
-        std::string real_path = "/dev/shm/" + SHMfileName.substr(1);
+        std::string real_path = "/dev/shm/" + SHMfileName;
         if (std::filesystem::exists(real_path)) {
             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
         } else {
@@ -106,6 +110,7 @@ public:
         return 1;
     }
 
+    // Get metadata of the file
     int getImageData() {
         std::vector<int> data = getImageSHM();
         
@@ -132,6 +137,7 @@ public:
         return 1;
     }
 
+    // Class constructor
     consumer() {
         int result = getImageData(); // Populate basic video data
         

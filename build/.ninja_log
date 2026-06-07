@@ -1,0 +1,20 @@
+# ninja log v7
+1	697	1780824782814661894	main/CMakeFiles/hyprlarp.dir/__/dataChecker.cpp.o	19673de4a056b743
+1	769	1780824782814421753	main/CMakeFiles/hyprlarp.dir/__/socketReceive.cpp.o	4691f55802133665
+2	810	1780824782815402435	main/CMakeFiles/hyprlarp.dir/__/checkTerminal.cpp.o	d730332c20fde437
+2	1735	1780824782815083225	main/CMakeFiles/hyprlarp.dir/__/tools.cpp.o	a26ce09d4d5a31c8
+1	1903	1780824782814890313	main/CMakeFiles/hyprlarp.dir/__/layoutWindow.cpp.o	2f4ba62b7d2ab987
+1	2185	1780824782813476095	main/CMakeFiles/hyprlarp.dir/__/main.cpp.o	536fe91f7f3bc8d0
+2	2693	1780824782815645061	main/CMakeFiles/hyprlarp.dir/__/videoRendering.cpp.o	a24cc5dbce5d14f8
+2	2720	1780824782815218439	main/CMakeFiles/hyprlarp.dir/__/DataType.cpp.o	5c2cc785b3b850a4
+1	3623	1780824782814262875	main/CMakeFiles/hyprlarp.dir/__/socketSend.cpp.o	f993cf5d544f8c86
+3623	3731	1780824786435454278	main/hyprlarp	8714e1583e7cfa4d
+1	572	1780824786562776863	producer/CMakeFiles/producer.dir/__/videoDecoder.cpp.o	e8a36fe13ff3fa9d
+1	688	1780824786561453519	producer/CMakeFiles/producer.dir/__/producer.cpp.o	accc067416a6ab97
+2	704	1780824786562932465	producer/CMakeFiles/producer.dir/__/shm.cpp.o	fc17265aa71f5860
+704	987	1780824787264449284	producer/producer	be3b408d3d72137d
+1	419	1780824787564445188	consumer/CMakeFiles/consumer.dir/__/base64converter.cpp.o	b354758b28e7acaf
+1	650	1780824787564113314	consumer/CMakeFiles/consumer.dir/__/renderer.cpp.o	df770e8e3fe5bd9d
+1	692	1780824787564294515	consumer/CMakeFiles/consumer.dir/__/shm.cpp.o	72927d29c799281e
+1	831	1780824787563447483	consumer/CMakeFiles/consumer.dir/__/consumer.cpp.o	548de17bf16d6017
+831	1406	1780824788394442477	consumer/consumer	cc412bf1ca6af27f

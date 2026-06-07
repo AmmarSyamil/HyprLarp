@@ -29,7 +29,7 @@ int SpeedTest() {
     {    
         auto start = std::chrono::high_resolution_clock::now();
     
-        int result = CommandTest();
+        CommandTest();
     
         auto finish = std::chrono::high_resolution_clock::now();
     
@@ -55,15 +55,17 @@ int SpeedTest() {
     return 0;
 };
 
-int renderVideo(WindowData data) {
-     const char* command = "mpv --vo=kitty --vo-kitty-use-shm=yes --osc=no --osd-level=0 --profile=sw-fast --really-quiet --no-terminal" + " --vf=crop=width:height:x_offset:y_offset video.mp4";
-    int result = std::system(command);
+int renderVideo() {
+    // build command string (use std::string to concatenate)
+    std::string command = std::string("mpv --vo=kitty --vo-kitty-use-shm=yes --osc=no --osd-level=0 --profile=sw-fast --really-quiet --no-terminal")
+        + " --vf=crop=width:height:x_offset:y_offset video.mp4";
+    int result = std::system(command.c_str());
     return result;
-};
-
-
-
-int main() {
-    SpeedTest();
-    return 0;
 }
+
+
+
+// int main() {
+//     SpeedTest();
+//     return 0;
+// }

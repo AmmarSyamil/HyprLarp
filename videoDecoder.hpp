@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -12,14 +14,14 @@ extern "C" {
 
 #include "shm.hpp"
 
-// Video header
+// Video header struct
 struct VideoHeader {
     int width =0;
     int height;
     int image_size;
 };
 
-// A clean C++ struct to hold the exported raw pixel planes
+// A struct to hold the exported raw pixel planes
 struct VideoFrameData {
     int width = 0;
     int height = 0;
@@ -32,6 +34,7 @@ struct VideoFrameData {
     std::vector<uint8_t> v_plane;
 };
 
+// Main data struct for producer-
 class VideoDecoder {
 private:
     AVFormatContext* format_ctx = nullptr;
@@ -42,10 +45,7 @@ private:
     int video_stream_idx = -1;
     int frame_counter = 0;
 
-    
-
     uint8_t* shm = nullptr;
-
     uint8_t RGBAData{};
 
     // Helper function to safely copy raw data out of FFmpeg's padded linesizes
@@ -167,6 +167,7 @@ public:
         int height = codec_ctx->height;
         int image_size = width * height * 4; // RGBA size
 
+        // Setup producer SH<
         shm = createSHM(image_size, width, height, "/vp_static", true);  // true = with header
         if (!shm) {
             std::cerr << "Failed to allocate initialization SHM" << std::endl;
@@ -215,13 +216,14 @@ public:
                     copy_plane(frame->data[1], frame->linesize[1], out_data->u_plane.data(), uv_width, uv_height);
                     copy_plane(frame->data[2], frame->linesize[2], out_data->v_plane.data(), uv_width, uv_height);
                     
-                    //Convert 
+                    // Convert 
                     converterNsendSHM();
  
                     // Cleanup loop instances
                     av_frame_unref(frame);
                     av_packet_unref(packet);
-                    return true; // We populated out_data successfully!
+
+                    return true;
                 }
             }
             av_packet_unref(packet);
@@ -258,3 +260,6 @@ public:
         }
     }
 };
+
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame);
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame);

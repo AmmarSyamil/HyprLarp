@@ -4,14 +4,13 @@
 
 //consumer.cpp
 int main() {
+    // Setup consumer class
     consumer cons;
 
-    //Populate data of the consumer object
-    // cons.getImageData(); I alreayd did that in constructur
-    cons.setupSHMfileName();
-    cons.setupSHM();
-    cons.populateSHM();
-    cons.displayImage();
+    cons.setupSHMfileName(1); // Create SHM filename
+    cons.setupSHM();    // Create and initialize the SHM  
+    cons.populateSHM(); // Populate the SHM with the imagefile
+    cons.displayImage(); // Display the Image to the terminal usign kitty escape sequences
     
     std::cout << "testing .." << std::endl;
     std::cin.get();

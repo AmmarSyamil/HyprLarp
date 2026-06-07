@@ -13,7 +13,7 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
 
     // test shmfilename
     std::string SHMfileName = imageSHM;
-    std::string real_path = "/dev/shm/" + SHMfileName.substr(1);
+    std::string real_path = "/dev/shm/" + SHMfileName;
         if (std::filesystem::exists(real_path)) {
             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
         } else {
@@ -21,9 +21,9 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
     }
 
     std::string shm_basename = imageSHM;
-    if (!shm_basename.empty() && shm_basename[0] == '/') {
-        shm_basename = shm_basename.substr(1);
-    }
+    // if (!shm_basename.empty() && shm_basename[0] == '/') {
+        // shm_basename = shm_basename.substr(1);
+    // }
 
     std::cerr << "Base64  base encoded: '" << shm_basename<< "'\n";
 
@@ -35,8 +35,7 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
 
     int pixel_data_sizes = width * height * 4;
 
-    // For Kitty shared memory protocol: omit O parameter (not reliable with t=s)
-    // SHM now contains ONLY pixel data starting at offset 0
+    // Create the escape sequence string
     std::string escape = "\x1b_Ga=T,f=32,s=" + std::to_string(width) + 
                          ",v=" + std::to_string(height) + 
                          ",t=s,S=" + std::to_string(pixel_data_sizes) +
@@ -58,10 +57,10 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
     //     return 0;
     // }
 
-    std::cerr << "Escape sequence hex: ";
-    for (unsigned char c : escape) {
-        fprintf(stderr, "%02x ", c);
-    }
+    // std::cerr << "Escape sequence hex: ";
+    // for (unsigned char c : escape) {
+    //     fprintf(stderr, "%02x ", c);
+    // }
     fprintf(stderr, "\n");
     
     std::cout << "displayed finish" << std::endl;

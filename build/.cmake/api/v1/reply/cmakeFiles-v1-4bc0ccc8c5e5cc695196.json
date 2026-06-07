@@ -227,6 +227,15 @@
 			"isCMake" : true,
 			"isExternal" : true,
 			"path" : "/usr/share/cmake/Modules/FindPackageMessage.cmake"
+		},
+		{
+			"path" : "main/CMakeLists.txt"
+		},
+		{
+			"path" : "producer/CMakeLists.txt"
+		},
+		{
+			"path" : "consumer/CMakeLists.txt"
 		}
 	],
 	"kind" : "cmakeFiles",

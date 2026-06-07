@@ -18,38 +18,19 @@ extern "C" {
 
 // idk header
 
-
-// Function to output VideoFrameData
-int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
-    while (decoder.read_next_frame(&frame)) {
-        std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
-    }
-
-    return 0;
-}
-
-// Overload function for spesific frame to get
-int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame) {
-    while (decoder.read_next_frame(&frame)) {
-        if (frame.frame_index == desired_frame) {
-            std::cout << "Successfully isolated frame " << desired_frame << "!\n";
-            std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
-            break; // Stop decoding immediately, we found our frame.
-        } else {
-            std::cout << "Not this one." << std::endl;
-        }
-    }
-    std::cout << "decode video done" << std::endl;
-    return 1;
-}
-
 int main() {
+
+    // Setup VideoDecoder function
     VideoDecoder decoder;
+
+    // Setup, create, and populate SHM file
     bool decode_open = decoder.open("video.mp4");
+    
     // if (!decoder.open("video.mp4")) {
         // std::cout << "failed" << std::endl;
         // return -1;
     // };
+
     if (!decode_open) {
         std::cout << "failed" << std::endl;
         return -1;
@@ -63,10 +44,8 @@ int main() {
     decodeVideo(decoder, frame, desired_frame);
 
     std::cout << decoder.numberofFrame() << std::endl;
-
     
-    
-    // Tester to consumer
+    // function to wait before finishing
     std::string t = "m";
     while (t == "m") {
         if (!(std::cin >> t)) {

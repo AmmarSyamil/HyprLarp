@@ -21,26 +21,7 @@ if(NOT nlohmann_json_FOUND)
     FetchContent_MakeAvailable(json)
 endif()
 
-# Main executable
-add_executable(hyprlarp
-    main.cpp
-    socketSend.cpp
-    socketReceive.cpp
-    dataChecker.cpp
-    layoutWindow.cpp
-    tools.cpp
-    DataType.cpp
-    checkTerminal.cpp
-    videoRendering.cpp
-)
-
-# Link libraries
-target_link_libraries(hyprlarp PRIVATE nlohmann_json::nlohmann_json PkgConfig::SH4LT)
-
-# Include directories if needed
-target_include_directories(hyprlarp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Optional: Add compile options for better warnings
-if(UNIX)
-    target_compile_options(hyprlarp PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+# Add subdirectories for main, producer, and consumer
+add_subdirectory(main)
+add_subdirectory(producer)
+add_subdirectory(consumer)
