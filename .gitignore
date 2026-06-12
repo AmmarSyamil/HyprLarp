@@ -1,0 +1,30 @@
+# Build directories
+build/
+cmake-build-*/
+
+# CMake
+CMakeUserPresets.json
+
+# Compiled objects
+*.o
+*.a
+*.so
+
+# Executables
+*.out
+hyprlarp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test outputs
+*.ppm
+output.txt

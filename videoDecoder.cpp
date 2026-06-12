@@ -27,3 +27,8 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame)
     std::cout << "decode video done" << std::endl;
     return 1;
 }
+
+// Function to extract video's native height, width, and frame rate.
+int extractVideoInfo() {
+    
+}

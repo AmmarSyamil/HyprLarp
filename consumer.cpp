@@ -2,7 +2,7 @@
 #include "consumer.hpp"
 #include "shm.hpp"
 
-//consumer.cpp
+// consumer.cpp
 int main() {
     // Setup consumer class
     consumer cons;

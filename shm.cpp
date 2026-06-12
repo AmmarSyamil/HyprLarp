@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <vector>
 #include <stdio.h>
+#include <atomic>
 
 extern "C" {
 #include <sys/mman.h>
@@ -19,7 +20,52 @@ extern "C" {
 
 #include "videoDecoder.hpp"
 
-//For main SHM - Testing if pixel data is readable
+
+// Slot -> the 8 size buffer that dictate which frame is miaw
+
+// Struct contain the info of a frame data
+struct alignas(64) frameSlot {
+    std::atomic<uint64_t> sequence; // sequence lock, odd = clean, even = dirty \\ further use
+    // std::atomic<uint32_t> reader_count;
+    uint32_t _pad[6];
+};
+
+//Header struct data
+struct alignas(64) controlHeader {
+    // Video properties
+    uint32_t width;
+    uint32_t height;
+    uint32_t stride; // Padding for each frame
+    uint32_t num_sloth; // Total size of the ring buffer
+
+    // Producer broadcast state
+    std::atomic<uint64_t> global_sequences; // Frame produced counter
+    std::atomic<uint32_t> write_slot_index; // last Frame slot location [0 , 7]
+
+    uint32_t _pad[2]; // Padding for after the metadata type shi
+
+    frameSlot slotMetadata[8]; // Make frame slot = 8
+};
+
+// SHM datatype
+// Contain all of the data
+// Each page = 4096
+struct shmData {
+    controlHeader header;
+    // Frame data per 4096 ish cuz its a page
+    // Raw RGB file
+};
+
+// Function to returen a memory address of the frame of the slot index inputted
+uint8_t* slotPtr(void* shmBase, int slot_index, size_t frame_bytes) {
+    uint8_t* basePtr = static_cast<uint8_t*>(shmBase); // Memory pointer of the main program
+    size_t headerPage = (sizeof(controlHeader) + 4095) / 4096;
+
+    return basePtr + (headerPage * 4096) + (slot_index * 4096);
+}
+
+
+// For main SHM - Testing if pixel data is readable
 int testSHM(int image_size, int width, int height, std::string shmFileName) {
     int fd = shm_open(shmFileName.c_str(), O_RDONLY, 0644);
 
