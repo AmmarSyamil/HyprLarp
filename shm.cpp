@@ -159,10 +159,13 @@ uint8_t* createSHM(int data_length, int width, int height, const std::string& SH
     }
     
     // For main SHM (producer), unlink old one first to ensure clean state
-    if (create_header && SHMfilename == "/vp_static") {
-        shm_unlink(SHMfilename.c_str());
-        std::cerr << "createSHM: Unlinked old " << SHMfilename << std::endl;
-    }
+    // if (create_header && SHMfilename == "/vp_static") {
+        // shm_unlink(SHMfilename.c_str());
+        // std::cerr << "createSHM: Unlinked old " << SHMfilename << std::endl;
+    // }
+
+    // Unlink old SHM (if any leftover somehow)
+    shm_unlink(SHMfilename.c_str());
     
     // Open the SHM
     int fd = shm_open(SHMfilename.c_str(), O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current

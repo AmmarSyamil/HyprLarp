@@ -44,6 +44,7 @@ private:
     int numberFrame = 0;
     int video_stream_idx = -1;
     int frame_counter = 0;
+    int frameRate;
 
     uint8_t* shm = nullptr;
     uint8_t RGBAData{};
@@ -102,18 +103,6 @@ public:
 
         // Perform scaling conversion
         sws_scale(dataContext, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
-
-        // // Reset SHM
-        // cleanupSHM();
-
-        // // Create SHM thingy
-        // shm = openSHM();
-        // if (!shm) {
-        //     std::cerr << "Failed to create SHM segment" << std::endl;
-        //     sws_freeContext(dataContext);
-        //     av_freep(&dstData);
-        //     return -1;
-        // }
         
         if (!shm) {
             std::cerr << "SHM pointer is null!" << std::endl;
@@ -165,7 +154,9 @@ public:
         // Setup SHM with header for metadata
         int width = codec_ctx->width;
         int height = codec_ctx->height;
-        int image_size = width * height * 4; // RGBA size
+        int image_size = width * height * 4; // RGBA size'
+        av_q2d(format_ctx->streams[video_stream_idx]->avg_frame_rate);
+
 
         // Setup producer SH<
         shm = createSHM(image_size, width, height, "/vp_static", true);  // true = with header

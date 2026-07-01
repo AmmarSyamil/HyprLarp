@@ -3,6 +3,12 @@
 
 #include "videoDecoder.hpp"
 
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/dict.h>
+}
+
 
 // Function to output VideoFrameData
 int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
@@ -28,7 +34,12 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame)
     return 1;
 }
 
+// Function to return the row stride size of a give width
+size_t rowStrideSize(uint32_t width) {
+    return (width * 4 + 63) & ~63ULL;
+};
+
 // Function to extract video's native height, width, and frame rate.
-int extractVideoInfo() {
+int extractVideoInfo(AVCodecContext* codec_ctx) {
     
 }

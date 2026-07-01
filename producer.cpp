@@ -19,31 +19,26 @@ extern "C" {
 // idk header
 
 int main() {
-
     // Setup VideoDecoder function
     VideoDecoder decoder;
 
-    // Setup, create, and populate SHM file
+    // Setup, create, and populate SHM metadata
     bool decode_open = decoder.open("video.mp4");
-    
-    // if (!decoder.open("video.mp4")) {
-        // std::cout << "failed" << std::endl;
-        // return -1;
-    // };
 
     if (!decode_open) {
         std::cout << "failed" << std::endl;
         return -1;
     }
 
-    std::cout << "start" << std::endl;
+    // std::cout << "start" << std::endl;
 
     VideoFrameData frame;
-    int desired_frame = 1; 
+    int desired_frame = 2; 
 
-    decodeVideo(decoder, frame, desired_frame);
+    // Decode video and copy to SHm
+    decodeVideo(decoder, frame, desired_frame); // What the hell this guy do?
 
-    std::cout << decoder.numberofFrame() << std::endl;
+    // std::cout << decoder.numberofFrame() << std::endl;
     
     // function to wait before finishing
     std::string t = "m";
