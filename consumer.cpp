@@ -4,7 +4,7 @@
 #include "consumer.hpp"
 #include "shm.hpp"
 
-// consumer.cpp
+// consumer.cpp.
 int main() {
     consumer cons;
 
