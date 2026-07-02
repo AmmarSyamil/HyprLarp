@@ -43,7 +43,7 @@ int queryWindowAddress(const nlohmann::json& data, int address, std::string& out
 
     for (const auto& jsonData: data) {
         if (jsonData["pid"] == address) {
-            std::cout << "Found PID window title: " << jsonData["title"] << std::endl;
+//             std::cout << "Found PID window title: " << jsonData["title"] << std::endl;
             output = jsonData["address"].get<std::string>();
             found = true;
             break;
@@ -64,7 +64,7 @@ int queryWindowAddress(const nlohmann::json& data, std::string address, std::str
 
     for (const auto& jsonData: data) {
         if (jsonData["title"] == address) {
-            std::cout << "Found window: " << jsonData["title"] << std::endl;
+//             std::cout << "Found window: " << jsonData["title"] << std::endl;
             output = jsonData["address"].get<std::string>();
             found = true;
             break;
@@ -87,7 +87,7 @@ int queryWorkspaceId(const nlohmann::json data, std::string address) {
 
     for (const auto& jsonData: data) {
         if (jsonData["address"] == address) {
-            std::cout << jsonData["title"] << std::endl;
+//             std::cout << jsonData["title"] << std::endl;
 
             return jsonData["workspace"]["id"];
         }
@@ -124,11 +124,11 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
     if (connection < 0) {
         std::cerr << "Socket connection failed at connecting for socket sends";
-        std::cout << connection << '\n' << path << std::endl;
+//         std::cout << connection << '\n' << path << std::endl;
 
         return 1;
     } else {
-        std::cout << "Connection succesfull (socket sends)" << std::endl;
+//         std::cout << "Connection succesfull (socket sends)" << std::endl;
     }
 
     

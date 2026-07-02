@@ -31,7 +31,7 @@ std::string ChangeWindowTittleName() {
     
     // Set tittle
     // we mabe can use     std::cout << "\033]21;" << Tittle << "\007" << std::flush; in future that are kitty spesific
-    std::cout << "\033]0;"<< Tittle <<"\007" << std::flush;
+//     std::cout << "\033]0;"<< Tittle <<"\007" << std::flush;
     
     // Give terminal time to process the escape sequence
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

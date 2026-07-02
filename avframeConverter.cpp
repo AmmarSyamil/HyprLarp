@@ -95,7 +95,7 @@ int main() {
                 }
 
                 // SUCCESS: You now have the raw pixels!
-                std::cout << "Decoded Frame successfully! Dimensions: " 
+//                 std::cout << "Decoded Frame successfully! Dimensions: " 
                           << frame->width << "x" << frame->height << std::endl;
 
                 // Clear the frame's internal buffers so it can be safely reused next loop
@@ -114,6 +114,6 @@ int main() {
     avcodec_free_context(&codec_ctx);
     avformat_close_input(&format_ctx);
 
-    std::cout << "Finished decoding successfully." << std::endl;
+//     std::cout << "Finished decoding successfully." << std::endl;
     return 0;
 }

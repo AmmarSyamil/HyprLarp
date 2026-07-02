@@ -47,7 +47,7 @@ int SpeedTest() {
         outFile.close();
         
         // This is just a backup console print, but the file is your source of truth
-        std::cout << "[Done] Results successfully written to output.txt" << std::endl;
+//         std::cout << "[Done] Results successfully written to output.txt" << std::endl;
     } else {
         std::cerr << "Error: Could not open output.txt for writing." << std::endl;
     }

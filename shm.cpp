@@ -21,51 +21,15 @@ extern "C" {
 
 #include "videoDecoder.hpp"
 
-
-// Slot -> the 8 size buffer that dictate which frame is miaw
-
-// Struct contain the info of a frame data
-struct alignas(64) frameSlot {
-    std::atomic<uint64_t> sequence; // sequence lock, odd = clean, even = dirty \\ further use
-    std::atomic<uint32_t> reader_count;
-    uint32_t _pad[13]; // Padding to make the struct 64 bytes
-};
-
-//Header struct data
-struct alignas(64) controlHeader {
-    // Video properties
-    uint32_t width;
-    uint32_t height;
-    uint32_t stride; // Padding for each frame
-    uint32_t num_sloth; // Total size of the ring buffer
-
-    // Producer broadcast state
-    std::atomic<uint64_t> global_sequences; // Frame produced counter
-    std::atomic<uint32_t> write_slot_index; // last Frame slot location [0 , 7]
-
-    // Innitialized flag
-    // False = when the producer has not yet written the video metadata (width, height, stride, num_slots) to the SHM
-    // True = when it has
-    std::atomic<bool> initialized = false;
-
-    uint32_t _pad[2]; // Padding for after the metadata type shi
-
-    frameSlot slotMetadata[8]; // Make frame slot = 8
-};
-
-// Deprecated cuz why would we use this lol, but thsi can be use as the reference to the shm structure
-
-// // SHM datatype
-// // Contain all of the data
-// // Each page = 4096
-// struct shmData {
-//     controlHeader header;
-
-//     // Leave some byte to start on the next page
-
-//     // Frame data per 4096 ish cuz its a page
-//     // Raw RGB file
-// };
+static std::string normalizeSHMName(const std::string& name) {
+    if (name.empty()) {
+        return name;
+    }
+    if (name[0] == '/') {
+        return name;
+    }
+    return std::string("/") + name;
+}
 
 // Function to returen a memory address of the frame of the slot index inputted
 uint8_t* slotPtr(void* shmBase, int slot_index, size_t frame_bytes) {
@@ -78,6 +42,7 @@ uint8_t* slotPtr(void* shmBase, int slot_index, size_t frame_bytes) {
 
 // For main SHM - Testing if pixel data is readable
 int testSHM(int image_size, int width, int height, std::string shmFileName) {
+    shmFileName = normalizeSHMName(shmFileName);
     int fd = shm_open(shmFileName.c_str(), O_RDONLY, 0644);
 
     
@@ -93,7 +58,7 @@ int testSHM(int image_size, int width, int height, std::string shmFileName) {
     }
     
     uint8_t* pixelData = static_cast<uint8_t*>(ptr);  // No offset needed for display SHMs
-    std::cout   << "First pixel byte: " << (int)pixelData[0] << std::endl;
+//     std::cout   << "First pixel byte: " << (int)pixelData[0] << std::endl;
 
     std::ofstream outFile("test_frame.ppm", std::ios::out | std::ios::binary);
     if (!outFile) {
@@ -120,7 +85,7 @@ int testSHM(int image_size, int width, int height, std::string shmFileName) {
 
 // Function to open producer SHM / for consumer
 uint8_t* openSHM() {
-    int fd = shm_open("/vp_static", O_RDWR, 0600); // 0600 = read write acces to current
+    int fd = shm_open(normalizeSHMName("/vp_static").c_str(), O_RDWR, 0600); // 0600 = read write acces to current
     if (fd == -1) {
         std::cerr <<"Error at openSHM : SHM does not exist yet" << std::endl;
         return nullptr;
@@ -175,17 +140,10 @@ uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool c
         return nullptr;
     }
     
-    // For main SHM (producer), unlink old one first to ensure clean state
-    // if (create_header && SHMfilename == "/vp_static") {
-        // shm_unlink(SHMfilename.c_str());
-        // std::cerr << "createSHM: Unlinked old " << SHMfilename << std::endl;
-    // }
-
-    // Unlink old SHM (if any leftover somehow)
-    shm_unlink(SHMfilename.c_str());
+    std::string normalized_name = normalizeSHMName(SHMfilename);
+    shm_unlink(normalized_name.c_str());
     
-    // Open the SHM
-    int fd = shm_open(SHMfilename.c_str(), O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
+    int fd = shm_open(normalized_name.c_str(), O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
     if (fd == -1) {
         std::cerr <<"Error at createSHM : failed to create/open shm" << std::endl;
         return nullptr;
@@ -317,7 +275,7 @@ std::vector<int> getImageSHM() {
 
 // Function to delete the SHM
 int deleteSHM() {
-    shm_unlink("/vp_static");
+    shm_unlink(normalizeSHMName("/vp_static").c_str());
     return 1;
 };
 
@@ -328,12 +286,12 @@ int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
         std::cerr << "putSHM : SHM pointer invalid" << std::endl;
     }
 
-    std::cout << "putSHM : pre memcpy" << std::endl;
+//     std::cout << "putSHM : pre memcpy" << std::endl;
 
     // Data written directly at offset 0 (Kitty reads from here)
     memcpy(shmPtr, data, data_size);
 
-    std::cout << "putSHM : post memcpy" << std::endl;
+//     std::cout << "putSHM : post memcpy" << std::endl;
 
     return 1;
 }

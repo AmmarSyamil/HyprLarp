@@ -15,10 +15,7 @@ extern "C" {
 int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
-
     while (decoder.read_next_frame(&frame)) {
-
-        // Give interval time to display the frame based on its timestamp
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = current_time - start_time;
         double elapsed_seconds = elapsed.count();
@@ -27,7 +24,7 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
             std::this_thread::sleep_for(std::chrono::duration<double>(time_remaining));
         }
 
-        std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
+//         std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
     }
 
     return 0;
@@ -37,14 +34,14 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
 int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame) {
     while (decoder.read_next_frame(&frame)) {
         if (frame.frame_index == desired_frame) {
-            std::cout << "Successfully isolated frame " << desired_frame << "!\n";
-            std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
+//             std::cout << "Successfully isolated frame " << desired_frame << "!\n";
+//             std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
             break; // Stop decoding immediately, we found our frame.
         } else {
-            std::cout << "Not this one." << std::endl;
+//             std::cout << "Not this one." << std::endl;
         }
     }
-    std::cout << "decode video done" << std::endl;
+//     std::cout << "decode video done" << std::endl;
     return 1;
 }
 

@@ -26,7 +26,7 @@ int main() {
     bool decode_open = decoder.open("video.mp4");
 
     if (!decode_open) {
-        std::cout << "failed" << std::endl;
+//         std::cout << "failed" << std::endl;
         return -1;
     }
 
@@ -35,22 +35,18 @@ int main() {
     VideoFrameData frame;
     // int desired_frame = 1; 
 
-    // Decode video and copy to SHm
-    decodeVideo(decoder, frame); 
-
-    // std::cout << decoder.numberofFrame() << std::endl;
-    
-    // function to wait before finishing
-    std::string t = "m";
-    while (t == "m") {
-        if (!(std::cin >> t)) {
-            while (true) {
-                sleep(2);
-            }
+    // Loop the video repeatedly
+    while (true) {
+        decodeVideo(decoder, frame);
+        if (!decoder.rewind()) {
+            std::cerr << "producer: failed to rewind video" << std::endl;
+            break;
         }
     }
 
-    std::cout << "SHM deleted" << std::endl;
+    deleteSHM();
+
+//     std::cout << "SHM deleted" << std::endl;
     deleteSHM();
 
     return 0;

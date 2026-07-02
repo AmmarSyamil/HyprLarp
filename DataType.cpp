@@ -26,7 +26,7 @@ WorkspaceData::WorkspaceData() {
     WorkspaceData::setWorkspaceIDStartup();
 
     // Put main terminal window ID into windowData type in the array
-    std::cout << std::endl << this->mainTerminalWindowID << std::endl;
+//     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
     WorkspaceData::InsertWindowData(this->mainTerminalWindowID, 1);
 }
 
@@ -89,7 +89,7 @@ int WorkspaceData::FindWorkspaceID(std::string& windowID) {
 // window type {1: main, 0 : sub}
 int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
     this->windowData.emplace_back(WindowData(windowType, windowID, this->data));
-    std::cout << "test" << std::endl;
+//     std::cout << "test" << std::endl;
     return 1;
 }
 
@@ -201,7 +201,7 @@ int WorkspaceData::setWorkspaceIDStartup() {
 
     // New implementation
     pid_t pid = FindTerminalPID();
-    std::cout << "terminal pid found is : " << pid << std::endl;
+//     std::cout << "terminal pid found is : " << pid << std::endl;
     if (pid != -1) {
         // I neeed to convert it first from PID into thw window ID
 

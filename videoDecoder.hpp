@@ -87,7 +87,7 @@ public:
         // Allocate local temporary buffer
         int data_length = av_image_alloc(dstData, dstLinesize, width, height, AV_PIX_FMT_RGBA, 1);
 
-        std::cout << "Frame Width: " << width << ", Height: " << height << std::endl;
+//         std::cout << "Frame Width: " << width << ", Height: " << height << std::endl;
 
         if (data_length < 1) std::cerr << "Failed to allocate memory" << std::endl;
         
@@ -254,6 +254,24 @@ public:
             avformat_close_input(&format_ctx); 
             format_ctx = nullptr; 
         }
+    }
+
+    bool rewind() {
+        if (!format_ctx || video_stream_idx < 0 || !codec_ctx) return false;
+
+        avcodec_flush_buffers(codec_ctx);
+        av_frame_unref(frame);
+        av_packet_unref(packet);
+
+        int64_t timestamp = 0;
+        int ret = av_seek_frame(format_ctx, video_stream_idx, timestamp, AVSEEK_FLAG_BACKWARD);
+        if (ret < 0) {
+            std::cerr << "VideoDecoder::rewind: failed to seek to start" << std::endl;
+            return false;
+        }
+
+        frame_counter = 0;
+        return true;
     }
 };
 

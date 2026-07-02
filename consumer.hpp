@@ -29,6 +29,7 @@ private:
     int pid = 0;
     int frame = 0;
     int videoHeaderSize = 0;
+    uint64_t last_sequence = static_cast<uint64_t>(-1);
 
 public:
 
@@ -36,58 +37,78 @@ public:
     int setupSHMfileName(int currectFrame) {
         pid = getpid();
         frame = currectFrame;
-        std::string fileNameSHM = "/HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
+        std::string fileNameSHM = "HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
 
         SHMfileName = fileNameSHM;
-        std::cout << "setupSHMfileName : " << SHMfileName << std::endl;
+//         std::cout << "setupSHMfileName : " << SHMfileName << std::endl;
 
         return 1;
     }
 
     // Function to create the SHM recuire each frame
     int setupSHM() {
-        std::cout << "pre setupSHM : " << SHMfileName  << std::endl;
-        // Create display SHM WITHOUT header (for Kitty graphics protocol)
-        shmPtr = createSHM(width, height, SHMfileName, false);
-        std::cout << "post setupSHM : " << SHMfileName << std::endl;
+        if (shmPtr) {
+            exitSHM(shmPtr, static_cast<size_t>(image_size));
+            shmPtr = nullptr;
+        }
 
-        std::string real_path = "/dev/shm/" + SHMfileName;
+//         std::cout << "pre setupSHM : " << SHMfileName  << std::endl;
+        shmPtr = createSHM(width, height, SHMfileName, false);
+//         std::cout << "post setupSHM : " << SHMfileName << std::endl;
+
+        std::string real_path = std::string("/dev/shm/") + SHMfileName;
     
         if (std::filesystem::exists(real_path)) {
-            std::cout << "The file exists at " << real_path << " right now!" << std::endl;
+//             std::cout << "The file exists at " << real_path << " right now!" << std::endl;
         } else {
-            std::cout << "The file is genuinely not at " << real_path << std::endl;
+//             std::cout << "The file is genuinely not at " << real_path << std::endl;
         }
 
         return 1;
     }
 
+    // Function to read the SHM from the producer and put it into the consumer's SHM
     int populateSHM() {
-
         if (!ProducerSHMPtr) {
             std::cerr << "populateSHM: Producer SHM pointer is null" << std::endl;
             return -1;
         }
 
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
-        int slot_index = header->write_slot_index.load(std::memory_order_acquire);
-        if (slot_index < 0 || slot_index >= static_cast<int>(header->num_sloth)) {
-            std::cerr << "populateSHM: invalid producer slot index " << slot_index << std::endl;
-            return -1;
-        }
+        while (true) {
+            uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
+            if (seq == last_sequence) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
 
-        std::vector<uint8_t> frame_data(image_size);
-        if (readFrameFromSlot(ProducerSHMPtr, slot_index, frame_data.data()) == -1) {
-            std::cerr << "populateSHM: failed to read frame from producer SHM" << std::endl;
-            return -1;
-        }
+            uint32_t slot_index = header->write_slot_index.load(std::memory_order_acquire);
+            uint64_t seq_check = header->global_sequences.load(std::memory_order_acquire);
+            if (seq != seq_check) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
 
-        if (putSHM(shmPtr, frame_data.data(), image_size) == -1) {
-            std::cerr << "populateSHM: cant put data into the SHM" << std::endl;
-            return -1;
-        }
+            if (static_cast<int>(slot_index) < 0 || slot_index >= header->num_sloth) {
+                std::cerr << "populateSHM: invalid producer slot index " << slot_index << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
 
-        return 1;
+            std::vector<uint8_t> frame_data(image_size);
+            if (readFrameFromSlot(ProducerSHMPtr, slot_index, frame_data.data()) == -1) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
+
+            if (putSHM(shmPtr, frame_data.data(), image_size) == -1) {
+                std::cerr << "populateSHM: cant put data into the SHM" << std::endl;
+                return -1;
+            }
+
+            last_sequence = seq;
+            return 1;
+        }
     }
 
     // Function to display the image of the SHM
@@ -98,25 +119,25 @@ public:
         }
 
         // Check SHM
-        std::string real_path = std::string("/dev/shm") + SHMfileName;
+        std::string real_path = std::string("/dev/shm/") + SHMfileName;
         if (std::filesystem::exists(real_path)) {
-            std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
+//             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
         } else {
-            std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
+//             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
         }
 
         // Test SHM
         int test = testSHM(image_size, width, height, SHMfileName);
 
         if (test == -1) {
-            std::cout << "consumer.hpp displayImage : cant test SHM" << std::endl;
+//             std::cout << "consumer.hpp displayImage : cant test SHM" << std::endl;
             return -1;
         }
 
 
-        std::cout << "pre escsequence shmfilename " << SHMfileName << std::endl;
+//         std::cout << "pre escsequence shmfilename " << SHMfileName << std::endl;
         escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
-        std::cout << "displayImage : escSequences runned" << std::endl;
+//         std::cout << "displayImage : escSequences runned" << std::endl;
 
         return 1;
     }
@@ -158,7 +179,7 @@ public:
         }
 
         // Testing
-        std::cout << "Testing ground first one " << height << " " <<width << " " << image_size << std::endl;
+//         std::cout << "Testing ground first one " << height << " " <<width << " " << image_size << std::endl;
 
         ProducerSHMPtr = openSHM(); // Setup shm ptr 
         if (!ProducerSHMPtr) {

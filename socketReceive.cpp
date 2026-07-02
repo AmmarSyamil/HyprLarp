@@ -33,12 +33,12 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
     int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
     if (connection < 0) {
         std::cerr << "Socket connection failed at conecting \n";
-        std::cout << connection;
-        std::cout << '\n';
-        std::cout << path;
+//         std::cout << connection;
+//         std::cout << '\n';
+//         std::cout << path;
         return 1;
     } else  {
-        std::cout << "Connection succesfull!!";
+//         std::cout << "Connection succesfull!!";
     }
 
     // Setup buffer with size 1024 bytes size (hopefully its enough)
@@ -73,7 +73,7 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
 
             // Operation to filer out non "activewindowv2"
             if (line.starts_with("activewindowv2")) {
-                std::cout << "theres active windowv2" << std::endl;
+//                 std::cout << "theres active windowv2" << std::endl;
 
                 // Put the line in the data
                 data.push_back(line);
