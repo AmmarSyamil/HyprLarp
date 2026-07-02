@@ -1,4 +1,5 @@
 // Producer.cpp
+#include <csignal>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -16,9 +17,17 @@ extern "C" {
 #include "videoDecoder.hpp"
 #include "shm.hpp"
 
+static void handle_signal(int) {
+    shm_unlink("/vp_static");
+    _exit(1);
+}
+
 // idk header
 
 int main() {
+    std::signal(SIGINT, handle_signal);
+    std::signal(SIGTERM, handle_signal);
+
     // Setup VideoDecoder function
     VideoDecoder decoder;
 
@@ -43,8 +52,6 @@ int main() {
             break;
         }
     }
-
-    deleteSHM();
 
 //     std::cout << "SHM deleted" << std::endl;
     deleteSHM();
