@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fstream>
 #include <sys/stat.h>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 #include <stdio.h>
@@ -26,8 +27,8 @@ extern "C" {
 // Struct contain the info of a frame data
 struct alignas(64) frameSlot {
     std::atomic<uint64_t> sequence; // sequence lock, odd = clean, even = dirty \\ further use
-    // std::atomic<uint32_t> reader_count;
-    uint32_t _pad[6];
+    std::atomic<uint32_t> reader_count;
+    uint32_t _pad[13]; // Padding to make the struct 64 bytes
 };
 
 //Header struct data
@@ -42,26 +43,36 @@ struct alignas(64) controlHeader {
     std::atomic<uint64_t> global_sequences; // Frame produced counter
     std::atomic<uint32_t> write_slot_index; // last Frame slot location [0 , 7]
 
+    // Innitialized flag
+    // False = when the producer has not yet written the video metadata (width, height, stride, num_slots) to the SHM
+    // True = when it has
+    std::atomic<bool> initialized = false;
+
     uint32_t _pad[2]; // Padding for after the metadata type shi
 
     frameSlot slotMetadata[8]; // Make frame slot = 8
 };
 
-// SHM datatype
-// Contain all of the data
-// Each page = 4096
-struct shmData {
-    controlHeader header;
-    // Frame data per 4096 ish cuz its a page
-    // Raw RGB file
-};
+// Deprecated cuz why would we use this lol, but thsi can be use as the reference to the shm structure
+
+// // SHM datatype
+// // Contain all of the data
+// // Each page = 4096
+// struct shmData {
+//     controlHeader header;
+
+//     // Leave some byte to start on the next page
+
+//     // Frame data per 4096 ish cuz its a page
+//     // Raw RGB file
+// };
 
 // Function to returen a memory address of the frame of the slot index inputted
 uint8_t* slotPtr(void* shmBase, int slot_index, size_t frame_bytes) {
     uint8_t* basePtr = static_cast<uint8_t*>(shmBase); // Memory pointer of the main program
     size_t headerPage = (sizeof(controlHeader) + 4095) / 4096;
 
-    return basePtr + (headerPage * 4096) + (slot_index * 4096);
+    return basePtr + (headerPage * 4096) + (slot_index * frame_bytes);
 }
 
 
@@ -123,7 +134,7 @@ uint8_t* openSHM() {
         return nullptr;
     }
 
-    //Find data length : we can use Two-Stage Mapping method in the future
+    // Find data length : we can use Two-Stage Mapping method in the future
     if (dataStat.st_size == 0) {
         std::cerr << "openSHM error : Shared memory file is empty (0 bytes)." << std::endl;
         close(fd);
@@ -141,6 +152,13 @@ uint8_t* openSHM() {
      return nullptr;
     }
 
+    // Check wether the SHM is initialized by the producer
+    // If it isnt initialized, wait until it is
+    controlHeader* header = static_cast<controlHeader*>(genericPtr);
+    while (!header->initialized.load(std::memory_order_acquire)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
     return static_cast<uint8_t*>(genericPtr); // returning in uint8_t pointer form
 }
 
@@ -150,11 +168,10 @@ uint8_t* openSHM() {
 //       When create_header=true, creates SHM with VideoHeader + pixel data (for producer)
 // For Consumer, we must NOT include header in display SHMs
 // Returns pointer to pixel data area, skipping header if present
-uint8_t* createSHM(int data_length, int width, int height, const std::string& SHMfilename, bool create_header) {
+uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool create_header) {
     // Validate inputs
-    if (data_length <= 0 || width <= 0 || height <= 0) {
-        std::cerr << "createSHM: Invalid dimensions - data_length=" << data_length 
-                  << ", width=" << width << ", height=" << height << std::endl;
+    if (width <= 0 || height <= 0) {
+        std::cerr << "createSHM: Invalid dimensions - data_length=" << ", width=" << width << ", height=" << height << std::endl;
         return nullptr;
     }
     
@@ -173,13 +190,27 @@ uint8_t* createSHM(int data_length, int width, int height, const std::string& SH
         std::cerr <<"Error at createSHM : failed to create/open shm" << std::endl;
         return nullptr;
     }
+
+    // Get SHM size
+    size_t shm_size = 0;
+    size_t stride = (width * 4 + 63) & ~63ULL;
+    if (create_header) {
+        size_t frame_size = stride * height;
+        size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
+
+        shm_size = header_size + frame_size * 8; // 8 slots
+    } else {
+        // size_t stride = (width * 4 + 63) & ~63ULL;
+        shm_size = stride * height;
+    }
     
     // Change file size of the SHM to the required image size
-    size_t total_size = (create_header ? sizeof(VideoHeader) : 0) + data_length;
-    ftruncate(fd, total_size);
+    // size_t total_size = (create_header ? sizeof(VideoHeader) : 0) + data_length;
+    // size_t total_size = (create_header ? sizeof(controlHeader) : 0) + data_length;
+    ftruncate(fd, shm_size);
 
     // Put image file size (default) into the SHM and get the pointer to the SHM
-    void* genericPtr = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* genericPtr = mmap(NULL, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (genericPtr == MAP_FAILED) {
         std::cerr << "shm error" << std::endl;
         close(fd);
@@ -187,27 +218,31 @@ uint8_t* createSHM(int data_length, int width, int height, const std::string& SH
     }
 
     // Zero-initialize the entire SHM to prevent garbage data
-    memset(genericPtr, 0, total_size);
+    memset(genericPtr, 0, shm_size);
     
     // For main SHM / producer
     if (create_header) {
-        VideoHeader* header = static_cast<VideoHeader*>(genericPtr);
+
+        // VideoHeader* header = static_cast<VideoHeader*>(genericPtr);
+        controlHeader* header = static_cast<controlHeader*>(genericPtr);
         header->width = width;
         header->height = height;
-        header->image_size = data_length;
+        header->stride = stride; // Assuming RGBA format
+        header->num_sloth = 8; // Total size of the ring buffer
+        // header->image_size = data_length;
         
-        std::cerr << "createSHM: Wrote header to " << SHMfilename << " - width=" << width 
-                  << ", height=" << height << ", image_size=" << data_length << std::endl;
+        header->initialized.store(true, std::memory_order_release);
+        std::cerr << "createSHM: Wrote header to " << SHMfilename << " - width=" << width  << ", height=" << height << std::endl;
         
-        close(fd);
+        // close(fd);
 
         // Return pointer to pixel data area (skip header)
-        return static_cast<uint8_t*>(genericPtr) + sizeof(VideoHeader);
+        // return static_cast<uint8_t*>(genericPtr) + sizeof(controlHeader);
     }
     
     close(fd);
 
-    // For producer, return pointer to start (no header)
+    // Return generic pointer for both consumer and producer, use slotPtr() to get the correct pixel data pointer for consumers
     return static_cast<uint8_t*>(genericPtr);
 }
 
@@ -225,7 +260,7 @@ int exitSHM(void* addr, int data_size) {
     //     return -1;
     // }; 
 
-    return 1;
+    // return 1;
 }
 
 // Get image data from the main (producer) SHM (might change implementation due to dynamic video resolution)
@@ -302,6 +337,32 @@ int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
     memcpy(shmPtr, data, data_size);
 
     std::cout << "putSHM : post memcpy" << std::endl;
+
+    return 1;
+}
+
+// Alternatve to putSHM function
+// Instead of writing to the SHM at offset 0, this function writes to a specific slot in the ring buffer
+// Used for producer to write to a specific slot in the ring buffer
+int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data, int frame_number) {
+    controlHeader* header = reinterpret_cast<controlHeader*>(shmPtr);
+
+    uint8_t* dest = slotPtr(shmPtr, slot_index_target, header->stride * header->height);
+    
+    // change sequence to even to indicate dirty
+    // header->slotMetadata[slot_index_target].sequence.fetch_add(static_cast<uint64_t>(frame_number) * 2ULL, std::memory_order_release); // Mark slot as dirty
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2, std::memory_order_release);
+
+    std::memcpy(dest, frame_data, header->stride * header->height);
+
+    // Change sequence to odd to indicate clean
+    // header->slotMetadata[slot_index_target].sequence.fetch_add(1, std::memory_order_release); // Mark slot as clean
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2 + 1, std::memory_order_release);
+
+
+    // Update the global sequence and write slot index
+    header->global_sequences.store(frame_number, std::memory_order_release);
+    header->write_slot_index.store(slot_index_target, std::memory_order_release);
 
     return 1;
 }

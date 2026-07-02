@@ -74,10 +74,10 @@ public:
     }
 
     // Function to convert YUV420P to RGBA
-    int converterNsendSHM() {
+    int converterNsendSHM(uint64_t frame_counter) {
         int width = codec_ctx->width;
         int height = codec_ctx->height;
-        int image_size = width * height * 4;
+        // int image_size = width * height * 4;
         uint8_t* dstData[4] = { nullptr };
         int dstLinesize[4] = { 0 };
 
@@ -110,12 +110,13 @@ public:
             sws_freeContext(dataContext);
             return -1;
         }
-
+        
         // Put data inside the SHM
-        putSHM(shm, dstData[0], image_size);
+        // putSHM(shm, dstData[0], image_size); // Deprecated, replaced with writeFrameToSlot for ring buffer functionality
+        writeFrameToSlot(shm, frame_counter % 8, dstData[0], frame_counter);
 
         //Test SHM
-        testSHM(data_length, width, height, "vp_static");
+        // testSHM(data_length, width, height, "vp_static");
 
         // Cleanup
         av_freep(&dstData[0]);
@@ -125,6 +126,7 @@ public:
     } 
 
     // Opens file and allocates processing memory
+    // kinda borked
     bool open(const std::string& filename) {
         if (avformat_open_input(&format_ctx, filename.c_str(), nullptr, nullptr) < 0) return false;
         if (avformat_find_stream_info(format_ctx, nullptr) < 0) return false;
@@ -150,23 +152,23 @@ public:
         frame_counter = 0;
         numberFrame = format_ctx->streams[video_stream_idx]->nb_frames;
 
-
         // Setup SHM with header for metadata
+        // imagesize deprecated, calculating size is fully implemented on createSHM function directly
         int width = codec_ctx->width;
         int height = codec_ctx->height;
-        int image_size = width * height * 4; // RGBA size'
+        // int image_size = width * height * 4; // RGBA size'
         av_q2d(format_ctx->streams[video_stream_idx]->avg_frame_rate);
 
 
-        // Setup producer SH<
-        shm = createSHM(image_size, width, height, "/vp_static", true);  // true = with header
+        // Setup producer SH<%
+        shm = createSHM(width, height, "/vp_static", true);  // true = with header
         if (!shm) {
             std::cerr << "Failed to allocate initialization SHM" << std::endl;
             close(); // Clean up allocated FFmpeg resources
             return false;
         }
             return true;
-        }
+    }
 
     // Pulls the next available frame out of the pipeline
     bool read_next_frame(VideoFrameData* out_data) {
@@ -208,7 +210,7 @@ public:
                     copy_plane(frame->data[2], frame->linesize[2], out_data->v_plane.data(), uv_width, uv_height);
                     
                     // Convert 
-                    converterNsendSHM();
+                    converterNsendSHM(frame_counter);
  
                     // Cleanup loop instances
                     av_frame_unref(frame);

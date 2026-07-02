@@ -49,7 +49,7 @@ public:
     int setupSHM() {
         std::cout << "pre setupSHM : " << SHMfileName  << std::endl;
         // Create display SHM WITHOUT header (for Kitty graphics protocol)
-        shmPtr = createSHM(image_size, width, height, SHMfileName, false);
+        shmPtr = createSHM(width, height, SHMfileName, false);
         std::cout << "post setupSHM : " << SHMfileName << std::endl;
 
         std::string real_path = "/dev/shm/" + SHMfileName;
