@@ -32,12 +32,11 @@ private:
 
 public:
 
-    // Create unique filename for SHM to differenciate SHM file from different frame and different terminal
+    // Create unique filename for SHM to differentiate SHM file from different frame and different terminal
     int setupSHMfileName(int currectFrame) {
-        // initialize pid so the generated name matches the current process
         pid = getpid();
         frame = currectFrame;
-        std::string fileNameSHM = "HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
+        std::string fileNameSHM = "/HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
 
         SHMfileName = fileNameSHM;
         std::cout << "setupSHMfileName : " << SHMfileName << std::endl;
@@ -65,15 +64,27 @@ public:
 
     int populateSHM() {
 
-        // Check if main / producer SHM pointer exist
         if (!ProducerSHMPtr) {
             std::cerr << "populateSHM: Producer SHM pointer is null" << std::endl;
             return -1;
         }
 
-        // ProducerSHMPtr points to mapping start (VideoHeader). Advance to pixel data.
-        if (putSHM(shmPtr, ProducerSHMPtr + sizeof(VideoHeader), image_size) == -1) {
-            std::cerr << "populateSHM : cant put data into the SHM" << std::endl;
+        controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
+        int slot_index = header->write_slot_index.load(std::memory_order_acquire);
+        if (slot_index < 0 || slot_index >= static_cast<int>(header->num_sloth)) {
+            std::cerr << "populateSHM: invalid producer slot index " << slot_index << std::endl;
+            return -1;
+        }
+
+        std::vector<uint8_t> frame_data(image_size);
+        if (readFrameFromSlot(ProducerSHMPtr, slot_index, frame_data.data()) == -1) {
+            std::cerr << "populateSHM: failed to read frame from producer SHM" << std::endl;
+            return -1;
+        }
+
+        if (putSHM(shmPtr, frame_data.data(), image_size) == -1) {
+            std::cerr << "populateSHM: cant put data into the SHM" << std::endl;
+            return -1;
         }
 
         return 1;
@@ -87,7 +98,7 @@ public:
         }
 
         // Check SHM
-        std::string real_path = "/dev/shm/" + SHMfileName;
+        std::string real_path = std::string("/dev/shm") + SHMfileName;
         if (std::filesystem::exists(real_path)) {
             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
         } else {
@@ -158,9 +169,16 @@ public:
     }
 
     ~consumer() {
+        if (ProducerSHMPtr) {
+            size_t total_mapped_size = static_cast<size_t>(videoHeaderSize) + static_cast<size_t>(image_size) * 8;
+            exitSHM(ProducerSHMPtr, total_mapped_size);
+            ProducerSHMPtr = nullptr;
+        }
+
         if (shmPtr) {
-            size_t total_mapped_size = sizeof(VideoHeader) + image_size;
-            exitSHM(shmPtr, total_mapped_size); 
+            exitSHM(shmPtr, static_cast<size_t>(image_size));
+            shm_unlink(SHMfileName.c_str());
+            shmPtr = nullptr;
         }
     }
 };

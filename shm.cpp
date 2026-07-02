@@ -273,22 +273,21 @@ std::vector<int> getImageSHM() {
     
     struct stat dataStat;
     
-    // Copy file to the struct
     if (fstat(fd, &dataStat) == -1) {
         std::cerr << "getImageSHM: fstat failed" << std::endl;
         close(fd);
         return {0, 0, 0, 0};
     }
     
-    std::cerr << "getImageSHM: /vp_static size = " << dataStat.st_size << " bytes, VideoHeader size = " << sizeof(VideoHeader) << std::endl;
+    size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
+    std::cerr << "getImageSHM: /vp_static size = " << dataStat.st_size << " bytes, controlHeader size = " << header_size << std::endl;
     
-    if (dataStat.st_size < sizeof(VideoHeader)) {
+    if (dataStat.st_size < static_cast<off_t>(header_size)) {
         std::cerr << "getImageSHM: Shared memory is not initialized or too small" << std::endl;
         close(fd);
         return {0, 0, 0, 0};
     }
 
-    size_t header_size = sizeof(VideoHeader);
     void* headerPtr = mmap(NULL, header_size, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
 
@@ -297,17 +296,15 @@ std::vector<int> getImageSHM() {
         return {0, 0, 0, 0};
     }
 
-    VideoHeader* data_ptr = static_cast<VideoHeader*>(headerPtr);
-    
+    controlHeader* data_ptr = static_cast<controlHeader*>(headerPtr);
     int width = data_ptr->width;
     int height = data_ptr->height;
-    int image_size = data_ptr->image_size;
+    int image_size = data_ptr->stride * data_ptr->height;
     int videoHeaderSize = header_size;
     
-    // Debug: print raw bytes
     std::cerr << "getImageSHM: Raw header bytes (first 12): ";
     uint8_t* raw = static_cast<uint8_t*>(headerPtr);
-    for (int i = 0; i < 12 && i < header_size; i++) {
+    for (int i = 0; i < 12 && i < static_cast<int>(header_size); i++) {
         fprintf(stderr, "%02x ", raw[i]);
     }
     fprintf(stderr, "\n");
@@ -366,3 +363,36 @@ int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data
 
     return 1;
 }
+
+// Function to read a frame from a specific slot in the ring buffer
+int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer) {
+    controlHeader* header = reinterpret_cast<controlHeader*>(shmPtr);
+
+    int data_size = header->stride * header->height;
+
+    // Get sequence before reading
+    uint64_t seq_before = header->slotMetadata[slot_index_target].sequence.load(std::memory_order_acquire);
+
+    // Check if the slot is dirty (even sequence number)
+    if (seq_before % 2 == 0) {
+        std::cerr << "readFrameFromSlot: Slot " << slot_index_target << " is dirty, skipping read." << std::endl;
+        return -1; // Indicate that the slot is dirty and cannot be read
+    }
+
+    // Get pointer to the slot data
+    uint8_t* slotLocation = slotPtr(shmPtr, slot_index_target, data_size);
+
+    // Copy data to local buffer
+    std::memcpy(local_buffer, slotLocation, data_size);
+
+    // Get sequence after reading
+    uint64_t seq_after = header->slotMetadata[slot_index_target].sequence.load(std::memory_order_acquire);
+
+    // Check if the sequence changed during the read
+    if (seq_before != seq_after) {
+        std::cerr << "readFrameFromSlot: Sequence changed during read for slot " << slot_index_target << ", data may be inconsistent." << std::endl;
+        return -1;
+    }
+
+    return 1; // Successful read
+};

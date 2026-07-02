@@ -33,10 +33,10 @@ int main() {
     // std::cout << "start" << std::endl;
 
     VideoFrameData frame;
-    int desired_frame = 1; 
+    // int desired_frame = 1; 
 
     // Decode video and copy to SHm
-    decodeVideo(decoder, frame, desired_frame); 
+    decodeVideo(decoder, frame); 
 
     // std::cout << decoder.numberofFrame() << std::endl;
     

@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
-
+#include <chrono>
 #include "videoDecoder.hpp"
+#include <thread>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -10,9 +11,22 @@ extern "C" {
 }
 
 
-// Function to output VideoFrameData
+// Function to idk
 int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+
     while (decoder.read_next_frame(&frame)) {
+
+        // Give interval time to display the frame based on its timestamp
+        auto current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = current_time - start_time;
+        double elapsed_seconds = elapsed.count();
+        double time_remaining = frame.timestamp_seconds - elapsed_seconds;
+        if (time_remaining > 0) {
+            std::this_thread::sleep_for(std::chrono::duration<double>(time_remaining));
+        }
+
         std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
     }
 

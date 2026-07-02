@@ -58,8 +58,11 @@ private:
 
     void cleanupSHM() {
         if (shm && codec_ctx) {
-            int image_size = codec_ctx->width * codec_ctx->height * 4;
-            exitSHM(shm, image_size);
+            size_t stride = (codec_ctx->width * 4 + 63) & ~63ULL;
+            size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
+            size_t image_size = stride * codec_ctx->height;
+            size_t total_mapping_size = header_size + image_size * 8;
+            exitSHM(shm, total_mapping_size);
             shm = nullptr;
         }
     }
