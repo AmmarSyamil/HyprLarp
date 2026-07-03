@@ -27,11 +27,11 @@ private:
     int height = 0;
     int image_size = 0;
     int pid = 0;
-    int frame = 0;
     int videoHeaderSize = 0;
     uint64_t last_sequence = static_cast<uint64_t>(-1);
 
 public:
+    int frame = 0;
 
     // Create unique filename for SHM to differentiate SHM file from different frame and different terminal
     int setupSHMfileName(int currectFrame) {
@@ -56,14 +56,6 @@ public:
         shmPtr = createSHM(width, height, SHMfileName, false);
 //         std::cout << "post setupSHM : " << SHMfileName << std::endl;
 
-        std::string real_path = std::string("/dev/shm/") + SHMfileName;
-    
-        if (std::filesystem::exists(real_path)) {
-//             std::cout << "The file exists at " << real_path << " right now!" << std::endl;
-        } else {
-//             std::cout << "The file is genuinely not at " << real_path << std::endl;
-        }
-
         return 1;
     }
 
@@ -78,7 +70,7 @@ public:
         while (true) {
             uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
             if (seq == last_sequence) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
                 continue;
             }
 

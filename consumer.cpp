@@ -15,16 +15,17 @@ int main() {
         cons.setupSHM();
 
         if (cons.populateSHM() == -1) {
-            std::cerr << "consumer: failed to populate SHM" << std::endl;
+            // std::cerr << "consumer: failed to populate SHM" << std::endl;
             break;
         }
 
         if (cons.displayImage() == -1) {
-            std::cerr << "consumer: failed to display image" << std::endl;
+            // std::cerr << "consumer: failed to display image" << std::endl;
             break;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        cons.frame++;
+        cons.setupSHMfileName(cons.frame);
     }
 
 //     std::cout << "consumer: exiting" << std::endl;

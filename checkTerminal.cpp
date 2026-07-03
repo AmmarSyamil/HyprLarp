@@ -88,7 +88,7 @@ pid_t FindTerminalPID() {
         std::string name = GetProcessName(pid);
 
 //         std::cout << "PID: " << pid
-                << " NAME: [" << name << "]\n";
+//                 << " NAME: [" << name << "]\n";
 
         if (terminals.contains(name)) {
 //             std::cout << "FOUND TERMINAL\n";
@@ -110,7 +110,7 @@ int IsPIDTerminal(pid_t pid) {
         std::string name = GetProcessName(pid);
 
 //         std::cout << "PID: " << pid
-                << " NAME: [" << name << "]\n";
+//                 << " NAME: [" << name << "]\n";
 
         if (terminals.contains(name)) {
 //             std::cout << "FOUND TERMINAL\n";
