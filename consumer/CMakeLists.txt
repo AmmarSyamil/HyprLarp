@@ -8,7 +8,19 @@ add_executable(consumer
 target_include_directories(consumer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(consumer PRIVATE stdc++)
 
+# Consumer debug mode executable (shows timing stats instead of video)
+add_executable(consumer_debug
+    ../consumer_debug.cpp
+    ../renderer.cpp
+    ../shm.cpp
+    ../base64converter.cpp
+)
+
+target_include_directories(consumer_debug PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(consumer_debug PRIVATE stdc++)
+
 # Compile options
 if(UNIX)
     target_compile_options(consumer PRIVATE -Wall -Wextra -Wpedantic -g)
+    target_compile_options(consumer_debug PRIVATE -Wall -Wextra -Wpedantic -g)
 endif()

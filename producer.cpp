@@ -45,7 +45,10 @@ int main() {
     // int desired_frame = 1; 
 
     // Loop the video repeatedly
+    int loop_count = 0;
     while (true) {
+        loop_count++;
+        std::cerr << "[PRODUCER] === Loop " << loop_count << " ===" << std::endl;
         decodeVideo(decoder, frame);
         if (!decoder.rewind()) {
             std::cerr << "producer: failed to rewind video" << std::endl;

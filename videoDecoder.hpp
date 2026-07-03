@@ -45,6 +45,7 @@ private:
     int video_stream_idx = -1;
     int frame_counter = 0;
     int frameRate;
+    SwsContext* sws_ctx = nullptr;  // Reuse SWS context for all frames
 
     uint8_t* shm = nullptr;
     uint8_t RGBAData{};
@@ -65,6 +66,10 @@ private:
             exitSHM(shm, total_mapping_size);
             shm = nullptr;
         }
+        if (sws_ctx) {
+            sws_freeContext(sws_ctx);
+            sws_ctx = nullptr;
+        }
     }
 
 public:
@@ -80,50 +85,37 @@ public:
     int converterNsendSHM(uint64_t frame_counter) {
         int width = codec_ctx->width;
         int height = codec_ctx->height;
-        // int image_size = width * height * 4;
         uint8_t* dstData[4] = { nullptr };
         int dstLinesize[4] = { 0 };
 
         // Allocate local temporary buffer
         int data_length = av_image_alloc(dstData, dstLinesize, width, height, AV_PIX_FMT_RGBA, 1);
-
-//         std::cout << "Frame Width: " << width << ", Height: " << height << std::endl;
-
-        if (data_length < 1) std::cerr << "Failed to allocate memory" << std::endl;
+        if (data_length < 1) {
+            std::cerr << "Failed to allocate memory" << std::endl;
+            return -1;
+        }
         
-        // Set up context 
-        SwsContext* dataContext = sws_getContext(
-            width, height, (AVPixelFormat)frame->format, // Source details
-            width, height, AV_PIX_FMT_RGBA,            // Target details
-            SWS_BILINEAR, nullptr, nullptr, nullptr                  // Filters (Not used for color space swapping)
-        );        
-        
-        if (!dataContext) {
-            std::cerr << "Failed to create SwsContext" << std::endl;
+        if (!sws_ctx) {
+            std::cerr << "SWS context not initialized!" << std::endl;
             av_freep(&dstData[0]);
             return -1;
-        };
+        }
 
-        // Perform scaling conversion
-        sws_scale(dataContext, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
+        // Perform scaling conversion using cached context
+        sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
         
         if (!shm) {
             std::cerr << "SHM pointer is null!" << std::endl;
             av_freep(&dstData[0]);
-            sws_freeContext(dataContext);
             return -1;
         }
         
         // Put data inside the SHM
-        // putSHM(shm, dstData[0], image_size); // Deprecated, replaced with writeFrameToSlot for ring buffer functionality
-        writeFrameToSlot(shm, frame_counter % 8, dstData[0], frame_counter);
-
-        //Test SHM
-        // testSHM(data_length, width, height, "vp_static");
+        int slot = frame_counter % 8;
+        writeFrameToSlot(shm, slot, dstData[0], frame_counter);
 
         // Cleanup
         av_freep(&dstData[0]);
-        sws_freeContext(dataContext);
 
         return 0;
     } 
@@ -155,76 +147,85 @@ public:
         frame_counter = 0;
         numberFrame = format_ctx->streams[video_stream_idx]->nb_frames;
 
-        // Setup SHM with header for metadata
-        // imagesize deprecated, calculating size is fully implemented on createSHM function directly
         int width = codec_ctx->width;
         int height = codec_ctx->height;
-        // int image_size = width * height * 4; // RGBA size'
         av_q2d(format_ctx->streams[video_stream_idx]->avg_frame_rate);
 
+        // Create and cache SwsContext for all frames (reused in converterNsendSHM)
+        sws_ctx = sws_getContext(
+            width, height, (AVPixelFormat)codec_ctx->pix_fmt,
+            width, height, AV_PIX_FMT_RGBA,
+            SWS_BILINEAR, nullptr, nullptr, nullptr
+        );
+        if (!sws_ctx) {
+            std::cerr << "Failed to create cached SwsContext" << std::endl;
+            close();
+            return false;
+        }
 
-        // Setup producer SH<%
+        // Setup producer SHM with header for metadata
         shm = createSHM(width, height, "/vp_static", true);  // true = with header
         if (!shm) {
             std::cerr << "Failed to allocate initialization SHM" << std::endl;
             close(); // Clean up allocated FFmpeg resources
             return false;
         }
-            return true;
+        return true;
     }
 
     // Pulls the next available frame out of the pipeline
     bool read_next_frame(VideoFrameData* out_data) {
         if (!format_ctx || !codec_ctx || !out_data) return false;
+        
+        static bool flushing = false;
 
-        while (av_read_frame(format_ctx, packet) >= 0) {
-            if (packet->stream_index == video_stream_idx) {
-                int response = avcodec_send_packet(codec_ctx, packet);
-                
-                while (response >= 0) {
-                    response = avcodec_receive_frame(codec_ctx, frame);
-                    if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
-                        break; // Need more packets
-                    } else if (response < 0) {
-                        av_packet_unref(packet);
-                        return false; // Error decoding
+        while (true) {
+            int response = 0;
+            
+            if (!flushing) {
+                // Try to read next packet
+                if (av_read_frame(format_ctx, packet) >= 0) {
+                    if (packet->stream_index == video_stream_idx) {
+                        response = avcodec_send_packet(codec_ctx, packet);
                     }
-
-                    frame_counter++;
-                    out_data->width = frame->width;
-                    out_data->height = frame->height;
-                    out_data->frame_index = frame_counter;
-                    
-                    AVRational time_base = format_ctx->streams[video_stream_idx]->time_base;
-                    out_data->timestamp_seconds = frame->pts * av_q2d(time_base);
-
-                    // Allocate memory tracking YUV420p dimensions
-                    int uv_width = frame->width / 2;
-                    int uv_height = frame->height / 2;
-                    out_data->y_plane.resize(frame->width * frame->height);
-                    out_data->u_plane.resize(uv_width * uv_height);
-                    out_data->v_plane.resize(uv_width * uv_height);
-
-                    
-                    
-                    // Strip padding out of linesize while transferring data to pointers
-                    copy_plane(frame->data[0], frame->linesize[0], out_data->y_plane.data(), frame->width, frame->height);
-                    copy_plane(frame->data[1], frame->linesize[1], out_data->u_plane.data(), uv_width, uv_height);
-                    copy_plane(frame->data[2], frame->linesize[2], out_data->v_plane.data(), uv_width, uv_height);
-                    
-                    // Convert 
-                    converterNsendSHM(frame_counter);
- 
-                    // Cleanup loop instances
-                    av_frame_unref(frame);
                     av_packet_unref(packet);
-
-                    return true;
+                } else {
+                    // EOF reached, start flushing buffered frames
+                    flushing = true;
+                    avcodec_send_packet(codec_ctx, nullptr);  // Send NULL to flush buffer
                 }
             }
-            av_packet_unref(packet);
+            
+            // Try to receive frame (works both during decoding and flushing)
+            response = avcodec_receive_frame(codec_ctx, frame);
+            
+            if (response == AVERROR_EOF) {
+                flushing = false;  // Reset for next video loop
+                return false;  // No more frames
+            } else if (response == AVERROR(EAGAIN)) {
+                if (flushing) {
+                    flushing = false;
+                    return false;  // Flush complete, no more frames
+                }
+                continue;  // Need more packets
+            } else if (response < 0) {
+                return false;  // Error decoding
+            }
+
+            frame_counter++;
+            out_data->width = frame->width;
+            out_data->height = frame->height;
+            out_data->frame_index = frame_counter;
+            
+            AVRational time_base = format_ctx->streams[video_stream_idx]->time_base;
+            out_data->timestamp_seconds = frame->pts * av_q2d(time_base);
+
+            // Convert to RGBA and write to SHM
+            converterNsendSHM(frame_counter);
+            
+            av_frame_unref(frame);
+            return true;
         }
-        return false; // Reached end of file
     }
 
     // Return the number of frame there is in one video

@@ -29,9 +29,22 @@ private:
     int pid = 0;
     int videoHeaderSize = 0;
     uint64_t last_sequence = static_cast<uint64_t>(-1);
+    
+    // Debug tracking
+    bool debug_mode = false;
+    uint32_t last_slot = 0;
+    int poll_retries = 0;
+    std::chrono::high_resolution_clock::time_point frame_start_time;
+    std::chrono::high_resolution_clock::time_point last_frame_time;
+    std::vector<uint8_t> frame_data_cache;  // Pre-allocated frame buffer
+
 
 public:
     int frame = 0;
+    
+    // Enable debug mode (shows timing stats instead of video)
+    void enableDebugMode() { debug_mode = true; }
+    void disableDebugMode() { debug_mode = false; }
 
     // Create unique filename for SHM to differentiate SHM file from different frame and different terminal
     int setupSHMfileName(int currectFrame) {
@@ -66,38 +79,48 @@ public:
             return -1;
         }
 
+        frame_start_time = std::chrono::high_resolution_clock::now();
+        poll_retries = 0;
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
         while (true) {
             uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
             if (seq == last_sequence) {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
+                poll_retries++;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
                 continue;
             }
 
             uint32_t slot_index = header->write_slot_index.load(std::memory_order_acquire);
             uint64_t seq_check = header->global_sequences.load(std::memory_order_acquire);
             if (seq != seq_check) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                poll_retries++;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
                 continue;
             }
 
             if (static_cast<int>(slot_index) < 0 || slot_index >= header->num_sloth) {
                 std::cerr << "populateSHM: invalid producer slot index " << slot_index << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
                 continue;
             }
 
-            std::vector<uint8_t> frame_data(image_size);
-            if (readFrameFromSlot(ProducerSHMPtr, slot_index, frame_data.data()) == -1) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            // Pre-allocate frame buffer on first use
+            if (frame_data_cache.empty()) {
+                frame_data_cache.resize(image_size);
+            }
+
+            if (readFrameFromSlot(ProducerSHMPtr, slot_index, frame_data_cache.data()) == -1) {
+                poll_retries++;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
                 continue;
             }
 
-            if (putSHM(shmPtr, frame_data.data(), image_size) == -1) {
+            if (putSHM(shmPtr, frame_data_cache.data(), image_size) == -1) {
                 std::cerr << "populateSHM: cant put data into the SHM" << std::endl;
                 return -1;
             }
 
+            last_slot = slot_index;
             last_sequence = seq;
             return 1;
         }
@@ -118,19 +141,36 @@ public:
 //             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
         }
 
-        // Test SHM
-        int test = testSHM(image_size, width, height, SHMfileName);
+        // Test SHM - commented out due to disk I/O latency overhead
+        // int test = testSHM(image_size, width, height, SHMfileName);
+        // if (test == -1) {
+        //     return -1;
+        // }
 
-        if (test == -1) {
-//             std::cout << "consumer.hpp displayImage : cant test SHM" << std::endl;
-            return -1;
-        }
 
 
 //         std::cout << "pre escsequence shmfilename " << SHMfileName << std::endl;
         escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
 //         std::cout << "displayImage : escSequences runned" << std::endl;
 
+        return 1;
+    }
+
+    // Debug mode: display frame timing stats while showing video
+    int displayDebugStats() {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto frame_duration = std::chrono::duration<double>(now - frame_start_time).count();
+        auto delta_from_last = last_frame_time.time_since_epoch().count() == 0 ? 0.0 : 
+                               std::chrono::duration<double>(now - last_frame_time).count();
+        
+        // Print debug stats to stderr (doesn't interfere with video on stdout)
+        std::cerr << "[CONSUMER] Seq=" << last_sequence 
+                  << " Slot=" << last_slot 
+                  << " Polls=" << poll_retries 
+                  << " ReadTime=" << frame_duration*1000 << "ms"
+                  << " Delta=" << delta_from_last*1000 << "ms" << std::endl;
+        
+        last_frame_time = now;
         return 1;
     }
 
