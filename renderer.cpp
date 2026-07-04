@@ -13,10 +13,10 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
     // test shmfilename
     std::string SHMfileName = imageSHM;
     std::string real_path = "/dev/shm/" + SHMfileName;
-        if (std::filesystem::exists(real_path)) {
+    if (std::filesystem::exists(real_path)) {
 //             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
-        } else {
-//             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
+    } else {
+        std::cerr << "The file is genuinely not at pre display " << real_path << std::endl;
     }
 
     std::string shm_basename = imageSHM;
@@ -24,7 +24,7 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
         // shm_basename = shm_basename.substr(1);
     // }
 
-    std::cerr << "Base64  base encoded: '" << shm_basename<< "'\n";
+    // std::cerr << "Base64  base encoded: '" << shm_basename<< "'\n";
 
     std::string b64_shm_name = base64Converter(shm_basename);
 
@@ -36,9 +36,13 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
 
     // Create the escape sequence string
     std::string escape = "\x1b_Ga=T,f=32,s=" + std::to_string(width) + 
-                         ",v=" + std::to_string(height) + 
-                         ",t=s,O=0,S=" + std::to_string(pixel_data_sizes) +
-                         ",q=0;" + b64_shm_name + "\x1b\\";
+                     ",v=" + std::to_string(height) + 
+                     ",t=s,O=0,S=" + std::to_string(pixel_data_sizes) +
+                     ",i=1"
+                     ",q=2;" + b64_shm_name + "\x1b\\";
+
+    // Cursor
+    write(STDOUT_FILENO, "\x1b[H", 3); // Move cursor to top-left corner
     
     // Using writeFirst pixel byte:
     write(STDOUT_FILENO, escape.c_str(), escape.size());

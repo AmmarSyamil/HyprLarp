@@ -23,9 +23,9 @@ zamn idk where to start
 17. in getImageSHM fix the vector return error thingy.
 (V). Add implementation of custom Base64 for custum SHM name cuz im lazy rn
 19. add implementation of the dynamic resolution video cuz im very lazy and hungry rn
-20. ADD delete of the SHM File of the consumer.cpp 
-21. fix SHM not deleting at exit
-
+(V). ADD delete of the SHM File of the consumer.cpp 
+(V). fix SHM not deleting at exit
+22. Use current cursor location, instead of top left, but maybe not
 
 video :
 1. use kitty, ghossty, WezTerm

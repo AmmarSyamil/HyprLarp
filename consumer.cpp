@@ -3,10 +3,25 @@
 #include <chrono>
 #include "consumer.hpp"
 #include "shm.hpp"
+#include <csignal>
+
+static void handle_signal(int) {
+    std::cout << "\033[?25h" << std::flush; // Show cursor again
+    _exit(1);
+}
 
 // consumer.cpp.
 int main() {
+    std::signal(SIGINT, handle_signal);
+    std::signal(SIGTERM, handle_signal);
+
     consumer cons;
+
+    // Hide cursor
+    std::cout << "\033[?25l" << std::flush;
+
+    // Cleaen the terminal
+    std::cout << "\033[2J\033[H" << std::flush;
 
     cons.setupSHMfileName(1); // Create SHM filename
     cons.setupSHM();    // Create and initialize the SHM  
@@ -27,6 +42,9 @@ int main() {
         cons.frame++;
         cons.setupSHMfileName(cons.frame);
     }
+
+    // Show cursor again
+    std::cout << "\033[?25h" << std::flush;
 
 //     std::cout << "consumer: exiting" << std::endl;
     return 0;
