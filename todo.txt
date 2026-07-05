@@ -84,6 +84,7 @@ Improvement:
 1. in videodecoder.hpp in converter funciton, we can change the av image alloc last parameter to 32, but that recuire tweeking.
 2. In terminalLayout.cpp in the main function, we can like reuse the jsondata with the producer main central socket thingy
 3. When running the main executable, the first terminal is the one who be the producer and consumer, the rest will be just consumer
+4. use Catch SIGWINCH
 
 Component of the current program :
 1. Consumer (consumer.cpp) : The one who render the video in terminal

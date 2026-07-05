@@ -10,6 +10,7 @@
 #include <termios.h>
 #include "DataType.hpp"
 #include <termios.h>
+#include <sys/ioctl.h>
 
 // Set terminal to raw mode to read escape sequences instantly
 bool set_terminal_raw(struct termios& original) {
@@ -101,12 +102,42 @@ bool query_terminal_internal_geometry(int& w, int& h, int& cols, int& rows) {
     return true;
 }
 
+// Internded method
+int get_terminal_internal_geometry(int& text_w, int& text_h, int& cols, int& rows) {
+    struct winsize ws;
+
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1) {
+        std::cerr << "cant ioctl" << std::endl;
+        return -1;
+    }
+
+    if (ws.ws_xpixel == 0 || ws.ws_ypixel == 0) {
+        std::cerr << "no data" << std::endl;
+        // Fallback: use the escape sequence method as a last resort,
+        // but realistically, if Kitty returns 0, something is very wrong.
+        return -1;
+    }
+
+    text_w = ws.ws_xpixel;
+    text_h = ws.ws_ypixel;
+    cols = ws.ws_col;
+    rows = ws.ws_row;
+
+
+    return 1;
+}
+
 // Function to return windows's terminal internal geommetry geometry
 InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
     int w, h, col, row;
     
-    if (!query_terminal_internal_geometry(w, h, col, row)) {
-        std::cerr << "Failed to query terminal internal geometry" << std::endl;
+    // if (!query_terminal_internal_geometry(w, h, col, row)) {
+    //     std::cerr << "Failed to query terminal internal geometry" << std::endl;
+    //     return {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // }
+
+    if (!get_terminal_internal_geometry(w, h, col, row)) {
+        std::cerr << "Failed to get terminal internal geometry via ioctl" << std::endl;
         return {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     }
 
@@ -119,6 +150,10 @@ InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
 
     int cell_w = w / col;
     int cell_h = h / row;
+
+    std::cout << "Internal Geometry: w=" << w << ", h=" << h 
+              << ", cols=" << col << ", rows=" << row << std::endl;
+    std::cout << "Grid Screen Position: (" << grid_screen_x << ", " << grid_screen_y << ")" << std::endl;
 
     return {w, h, col, row, pad_x, pad_y, grid_screen_x, grid_screen_y, cell_w, cell_h};
 }
