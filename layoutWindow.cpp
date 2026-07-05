@@ -1,12 +1,16 @@
 // This file contain the implementation of converting raw list of [at,pos] data of each window to a layout that can easily be accesed in the form of coordinate cartesius.
 
+#include <cstring>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <poll.h>
+
 
 #include "DataType.hpp"
+
 
 // Function to convert [at, size] into cartesius coordinate [x, y]
 WindowPosCartesian ConvertPosFormat(WindowPos& DataInput) {

@@ -12,6 +12,7 @@
 #include <vector>
 #include <list>
 
+// Function to connect to the socket and read the data from it, then filter out the activewindowv2 and put it in a list of string
 int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 

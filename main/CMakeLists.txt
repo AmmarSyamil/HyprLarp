@@ -8,6 +8,10 @@ add_executable(hyprlarp
     ../DataType.cpp
     ../checkTerminal.cpp
     ../videoRendering.cpp
+    ../terminal.cpp
+    ../terminal.hpp
+    ../checkTerminal.cpp
+    ../checkTerminal.hpp
 )
 
 target_include_directories(hyprlarp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

@@ -1,20 +1,19 @@
 // File of the project data type
 
+#include <cstddef>
 #include <iostream>
 #include <string>
 #include <nlohmann/json.hpp>
 #include <vector>
 #include <list>
-// #include 'socket'
-
+#include <unistd.h>
 #include "DataType.hpp"
 #include "socketSend.hpp"
 #include "tools.hpp"
 #include "layoutWindow.hpp"
-
 #include "checkTerminal.hpp"
 #include <unordered_set>
-
+#include "terminal.hpp"
 
 // Constructor 
 WorkspaceData::WorkspaceData() {
@@ -22,7 +21,6 @@ WorkspaceData::WorkspaceData() {
     GetWindowsPropertiesData(WorkspaceData::data);
 
     // Change implementation to find main window
-
     WorkspaceData::setWorkspaceIDStartup();
 
     // Put main terminal window ID into windowData type in the array
@@ -31,6 +29,7 @@ WorkspaceData::WorkspaceData() {
 }
 
 // Constructor function
+// Havent updated, see the overload for new version
 WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& data) {
     
     // Put requirement data into the object
@@ -44,9 +43,36 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // queryPosWindow();
     // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     GetWindowPosCartesian();
-    
 }
 
+// Overload Constructor function
+WindowData::WindowData(int windowType) {
+    // Get window data (see improvement part in todo.txt)
+    nlohmann::json data;
+    GetWindowsPropertiesData(data);
+
+    // Get windowID
+    std::string windowID;
+    pid_t pid = FindTerminalPID();
+    GetWindowAddress(pid, windowID, &data);
+    
+    // Put requirement data into the object
+    this->windowID = windowID;
+    this->windowType = windowType;
+
+    // Find position of the window
+    this->windowPos = GetWindowPos(data);
+
+    // Get internal data
+    this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
+
+    // Find cartesian of the window
+    // queryPosWindow();
+    // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
+    GetWindowPosCartesian();
+}
+
+// ts shit
 int WindowData::GetWindowPosCartesian() {
     this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     return 1;
@@ -106,7 +132,6 @@ int WorkspaceData::FetchWindowID() {
     }
 
     return 1;
-
 };
 
 std::unordered_set<std::string> WorkspaceData::currentWindowData() {

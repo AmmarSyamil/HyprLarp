@@ -19,25 +19,28 @@
 // - Hyprland IPC → detect workspace/window state
 
 int main() {
+    
     // Check wether it was run via terminal or not
     
 
     // initialized the WindowData type
-    WorkspaceData Data;
+    // WorkspaceData Data;
 
-    // Check systme terminal emulator
+    // // Check systme terminal emulator
     
-    // No need actually, this is past uses
-    // Get PID of the process
-    // pid_t pid = getpid();
+    // // No need actually, this is past uses
+    // // Get PID of the process
+    // // pid_t pid = getpid();
 
-    // Get all terminal window from that workspace
-//     std::cout << "initialize object done" << std::endl;
-    Data.FetchWindowID();
+    // // Get all terminal window from that workspace
+    // std::cout << "initialize object done" << std::endl;
+    // Data.FetchWindowID();
     // main terminal is mentioned twice
 //     std::cout << "fetch window done" << std::endl;
 
 //     std::cout << Data;
+
+    WindowData data = WindowData(0);
 
     return 1;
 }

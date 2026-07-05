@@ -20,6 +20,14 @@ struct WindowPosCartesian {
     std::vector<int> bottomRight; // bottom right point
 };
 
+struct InternalTerminalGeometry {
+    int w, h;                 // Pixel size of the text grid (inner area, excludes title bar/borders)
+    int cols, rows;           // Number of character cells in the grid (e.g., 80x24)
+    int pad_x, pad_y;         // Pixel offset from outer window to the text grid (title bar + left/right padding)
+    int grid_screen_x, grid_screen_y; // Absolute screen pixel coordinates of the grid's top-left corner
+    int cell_w, cell_h;       // Pixel size of one character cell (text_w / cols, text_h / rows)
+};
+
 class WindowData {
 private:
 
@@ -27,7 +35,11 @@ private:
     WindowPos windowPos;
 
     // Window pos in cartesian point 4 of em.
+    // maybe deprecated later
     WindowPosCartesian windowPosCartesian;
+
+    // Internal terminal geometry dimention
+    InternalTerminalGeometry internalTerminalGeometry;
 
     std::string windowID;
 
@@ -45,6 +57,7 @@ private:
 
     // Constructor
     WindowData(int windowType, std::string windowID, nlohmann::json& data);
+    WindowData(int windowType);
 
     friend std::ostream& operator<<(std::ostream& os, const WindowData& wd);
 
@@ -83,9 +96,6 @@ public:
 
     // function that check terminal of where the program is run and find its workspaceID
     int setWorkspaceIDStartup();
-    
-
-
 
     // Output all of the window ID that currently in the object windowData
     std::unordered_set<std::string> currentWindowData();

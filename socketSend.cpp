@@ -13,7 +13,7 @@
 #include "DataType.hpp"
 //Function that being called
 
-// Function to output the worsp
+//Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
 
     // well we can do this std::vector<int> at = jsonData["at"].get<std::vector<int>>();

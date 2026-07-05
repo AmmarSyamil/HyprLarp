@@ -5,6 +5,7 @@
 #include "shm.hpp"
 #include <csignal>
 
+// Handle signals to ensure the cursor is shown again on exit
 static void handle_signal(int) {
     std::cout << "\033[?25h" << std::flush; // Show cursor again
     _exit(1);

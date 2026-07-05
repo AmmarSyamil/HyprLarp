@@ -82,3 +82,11 @@ Things that i need to keep an i out :
 
 Improvement:
 1. in videodecoder.hpp in converter funciton, we can change the av image alloc last parameter to 32, but that recuire tweeking.
+2. In terminalLayout.cpp in the main function, we can like reuse the jsondata with the producer main central socket thingy
+3. When running the main executable, the first terminal is the one who be the producer and consumer, the rest will be just consumer
+
+Component of the current program :
+1. Consumer (consumer.cpp) : The one who render the video in terminal
+2. Producer (producer.cpp) : The one who decode the video and determine a change in the terminal layout
+3. layoutTerminal (layoutTerminal.cpp) : The one who get the layout of that layoutTerminal
+4. 
