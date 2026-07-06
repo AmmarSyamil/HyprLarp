@@ -151,9 +151,9 @@ InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
     int cell_w = w / col;
     int cell_h = h / row;
 
-    std::cout << "Internal Geometry: w=" << w << ", h=" << h 
-              << ", cols=" << col << ", rows=" << row << std::endl;
-    std::cout << "Grid Screen Position: (" << grid_screen_x << ", " << grid_screen_y << ")" << std::endl;
+    // std::cout << "Internal Geometry: w=" << w << ", h=" << h 
+    //           << ", cols=" << col << ", rows=" << row << std::endl;
+    // std::cout << "Grid Screen Position: (" << grid_screen_x << ", " << grid_screen_y << ")" << std::endl;
 
     return {w, h, col, row, pad_x, pad_y, grid_screen_x, grid_screen_y, cell_w, cell_h};
 }
