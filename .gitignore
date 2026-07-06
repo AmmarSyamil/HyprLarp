@@ -17,6 +17,7 @@ hyprlarp
 # IDE files
 .vscode/
 .idea/
+.venv
 *.swp
 *.swo
 *~
