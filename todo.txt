@@ -92,3 +92,16 @@ Component of the current program :
 2. Producer (producer.cpp) : The one who decode the video and determine a change in the terminal layout
 3. Terninal (terminal.cpp) : The one who determine the internal dimention 
 4.  
+
+GUI
+1. Add resize
+2. Add data get
+3. Save data
+
+JSON format : from GUI to send to producer
+{
+    "videoPath" : "/sdf/sdf.mp4",
+    "cornerLocation" : [
+        [topleft], [topright], [bottomleft], [bottomrihgt]
+    ]
+}

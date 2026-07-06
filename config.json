@@ -1,0 +1,21 @@
+{
+    "videoPath": "/home/sp/code/hyprlarp/video.mp4",
+    "cornerLocation": [
+        [
+            222,
+            200
+        ],
+        [
+            701,
+            200
+        ],
+        [
+            222,
+            639
+        ],
+        [
+            701,
+            639
+        ]
+    ]
+}
