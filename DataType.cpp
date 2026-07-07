@@ -14,6 +14,40 @@
 #include "checkTerminal.hpp"
 #include <unordered_set>
 #include "terminal.hpp"
+#include "simdjson.h"
+#include <string_view>
+#include <cstdlib>
+#include "terminalLayout.hpp"
+
+// Function to check wether the config file already exist or not
+bool configFileExists(const std::string& path) {
+    // std::filesystem::exists returns true if the path exists, false otherwise
+    return std::filesystem::exists(path);
+}
+
+// Parse ~/.config/HyprLarp.json
+videoPos jsonParser() {
+    simdjson::dom::parser parser;
+
+    const char* homeDir = std::getenv("HOME");
+    std::string filePath = homeDir ? std::string(homeDir) + "/.config/HyprLarp.json" : "HyprLarp.json";
+    simdjson::dom::element doc = parser.load(filePath);
+
+    auto corners = doc["cornerLocation"];
+
+    // Mapiing 
+    int64_t l = corners.at(0).at(0).get_int64();
+    int64_t r = corners.at(3).at(0).get_int64();
+    int64_t t = corners.at(0).at(1).get_int64();
+    int64_t b = corners.at(3).at(1).get_int64();
+
+    return {
+        static_cast<int>(l),
+        static_cast<int>(r),
+        static_cast<int>(t),
+        static_cast<int>(b)
+    };
+};
 
 // Constructor 
 WorkspaceData::WorkspaceData() {
@@ -23,14 +57,22 @@ WorkspaceData::WorkspaceData() {
     // Change implementation to find main window
     WorkspaceData::setWorkspaceIDStartup();
 
+    if (!configFileExists("~/.config/HyprLarp.json")) {
+        std::cerr << "Workspace constructor : config file doent exist yet, please creat one first" << std::endl;
+    };
+
+    // Inttitiae the pos video
+    this->videoPos = jsonParser();
+
     // Put main terminal window ID into windowData type in the array
 //     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
     WorkspaceData::InsertWindowData(this->mainTerminalWindowID, 1);
+
+
 }
 
 // Constructor function
-// Havent updated, see the overload for new version
-WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& data) {
+WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos) {
     
     // Put requirement data into the object
     this->windowID = windowID;
@@ -39,13 +81,29 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // Find position of the window
     this->windowPos = GetWindowPos(data);
 
+    // Get internal data
+    this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
+
+    // Stup InternalWindowData
+    this->internalWindowPos = {
+        this->internalTerminalGeometry.grid_screen_x,
+        this->internalTerminalGeometry.grid_screen_x + this->internalTerminalGeometry.w,
+        this->internalTerminalGeometry.grid_screen_y + this->internalTerminalGeometry.h,
+        this->internalTerminalGeometry.grid_screen_y
+    };
+
     // Find cartesian of the window
     // queryPosWindow();
     // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     GetWindowPosCartesian();
+
+    // Setup viewport
+    GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
+
 }
 
 // Overload Constructor function
+// why would i do this??
 WindowData::WindowData(int windowType) {
     // Get window data (see improvement part in todo.txt)
     nlohmann::json data;
@@ -66,10 +124,22 @@ WindowData::WindowData(int windowType) {
     // Get internal data
     this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
 
+    // Stup InternalWindowData
+    this->internalWindowPos = {
+        this->internalTerminalGeometry.grid_screen_x,
+        this->internalTerminalGeometry.grid_screen_x + this->internalTerminalGeometry.w,
+        this->internalTerminalGeometry.grid_screen_y + this->internalTerminalGeometry.h,
+        this->internalTerminalGeometry.grid_screen_y
+    };
+
     // Find cartesian of the window
     // queryPosWindow();
     // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     GetWindowPosCartesian();
+
+
+    // Setup viewport
+    // GetOverlap(this->, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState &viewPort)
 }
 
 // ts shit
@@ -114,7 +184,8 @@ int WorkspaceData::FindWorkspaceID(std::string& windowID) {
 // Function to insert a windowData to the workspaceData from window ID and window Type
 // window type {1: main, 0 : sub}
 int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
-    this->windowData.emplace_back(WindowData(windowType, windowID, this->data));
+    this->windowData.emplace_back(WindowData(windowType, windowID, this->data, this->videoPos));
+    // this->windowData.emplace_back(WindowData(1));
 //     std::cout << "test" << std::endl;
     return 1;
 }
@@ -127,7 +198,7 @@ int WorkspaceData::FetchWindowID() {
     for (const auto& jsonData: GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
         if (IsPIDTerminal(jsonData["pid"]) == 1 and !currentWindow.count(jsonData["address"])) {
             // I think i need to change the normal json data into the window data format.
-            this->windowData.emplace_back(0, jsonData["address"], this->data);
+            this->windowData.emplace_back(0, jsonData["address"], this->data, this->videoPos);
         }
     }
 

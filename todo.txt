@@ -5,7 +5,7 @@ zamn idk where to start
             std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
             std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
         }the active openwndow
-3. find how to show video / maybe image frist for mvp. Makesure it blazing fast and cached so its even faster.
+( V ) find how to show video / maybe image frist for mvp. Makesure it blazing fast and cached so its even faster.
 (v). i could use PID way instead of the window address thingy
 (?). check only terminal //// kitty can run this program
 (v). Make the socketsend more moduular. which is to split everyshit in the worlllld
@@ -27,13 +27,15 @@ zamn idk where to start
 (V). fix SHM not deleting at exit
 22. Use current cursor location, instead of top left, but maybe not
 23. Add audio support from the producer
+24. add video path modularity in DataType.hppp in theres siawfoijweeoi weeo
 
 video :
 1. use kitty, ghossty, WezTerm
 2. SHM memory IPC shit
 3. use mpv
 4. what way should i use, i think i need to make a pointer to the video run, then use pointer and just do crop crop
-5. How to do the layout one
+5. How to do the layout one    configFileExists(const std::string &path)
+
 
 How to make it like simultinuesly render? 
 1. Decoder : 
@@ -86,6 +88,9 @@ Improvement:
 2. In terminalLayout.cpp in the main function, we can like reuse the jsondata with the producer main central socket thingy
 3. When running the main executable, the first terminal is the one who be the producer and consumer, the rest will be just consumer
 4. use Catch SIGWINCH
+5. migrate all nlohmman/json into simdjson
+6. use ondemand api instead of dom for simdjson in DataType.cpp or elsewhere
+7. try to use try catch for freaky error
 
 Component of the current program :
 1. Consumer (consumer.cpp) : The one who render the video in terminal

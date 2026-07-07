@@ -4,6 +4,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
+// #include "simdjson.h"
 
 struct WindowPos {
     std::vector<int> at;
@@ -28,8 +29,36 @@ struct InternalTerminalGeometry {
     int cell_w, cell_h;       // Pixel size of one character cell (text_w / cols, text_h / rows)
 };
 
+struct InternalWindowPos {
+    int term_left;
+    int term_right;
+    int term_bottom;
+    int term_top;
+};
+
+// corner location
+struct videoPos {
+    int video_left;
+    int video_right;
+    int video_top;
+    int video_bottom;
+};
+
+// overlap thingy idk
+struct ViewportState {
+    bool isRender = false;
+
+    // Absolute desktop coor of the intersection area
+    int overlap_x = 0;
+    int overlap_y = 0;
+    int overlap_w = 0;
+    int overlap_h = 0;
+};
+
 class WindowData {
 private:
+
+    ViewportState viewPort;
 
     //Window pos in [at, size]
     WindowPos windowPos;
@@ -40,6 +69,9 @@ private:
 
     // Internal terminal geometry dimention
     InternalTerminalGeometry internalTerminalGeometry;
+
+    // Internal window Pos
+    InternalWindowPos internalWindowPos;
 
     std::string windowID;
 
@@ -56,7 +88,7 @@ private:
     int GetWindowPosCartesian();
 
     // Constructor
-    WindowData(int windowType, std::string windowID, nlohmann::json& data);
+    WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos);
     WindowData(int windowType);
 
     friend std::ostream& operator<<(std::ostream& os, const WindowData& wd);
@@ -78,9 +110,14 @@ private:
     //fetch from initial
     int WorkspaceID;
 
+    videoPos videoPos;
+
 public:
     //Main terminal window address
     std::string mainTerminalWindowID;
+
+    // Video path
+    std::string videoPath;
 
     // Function to find workspace ID (address) from given terminal window tittle name
     std::string windowID(std::string TerminalWindowTittleName);
@@ -102,6 +139,10 @@ public:
 
     // refresh data
     // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.
+
+    // struct videoPos GiveVideoPos() {
+        // return this->videoPos;
+    // };
 
     // Constructor
     WorkspaceData();
