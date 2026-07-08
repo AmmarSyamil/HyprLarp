@@ -1,14 +1,15 @@
 #pragma once
 
 #include <iostream>
+#include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
 // #include "simdjson.h"
 
 struct WindowPos {
-    std::vector<int> at;
-    std::vector<int> size;
+    std::vector<int> at; // x/y
+    std::vector<int> size; // w/h
 };
 
 
@@ -55,8 +56,35 @@ struct ViewportState {
     int overlap_h = 0;
 };
 
+// Render struct data
+struct layoutRender {
+    int x;
+    int y;
+    int w;
+    int h;
+
+    int cursor_col; // Sets terminal column location via ANSI string "\x1b[row;colH"
+    int cursor_row;// Sets terminal row location via ANSI string "\x1b[row;colH"
+    int disp_cols;  // Maps to Kitty 'c': How many character column blocks wide to draw the frame
+    int disp_rows;  // Maps to Kitty 'r': How many character row blocks high to draw the frame
+    int sub_offset_x; // Maps to Kitty 'X': Pixel nudges to shift the image right inside the text cell
+    int sub_offset_y; // Maps to Kitty 'Y': Pixel nudges to shift the image down inside the text cell
+};
+
+// Main struct of video data
+struct videoData {
+    int video_w;
+    int video_h;
+    double fps;
+    std::string videoPath;
+};
+
 class WindowData {
 private:
+
+    layoutRender layoutRender;
+
+    videoData videoData;
 
     ViewportState viewPort;
 
@@ -78,7 +106,7 @@ private:
     // window type {1: main, 0 : sub}
     int windowType;
 
-    public:
+public:
 
     std::vector<int> windowPosition;
     
@@ -86,6 +114,9 @@ private:
 
     // Function to populate cartesian from windowPos
     int GetWindowPosCartesian();
+
+    // Populate videoData
+    int GetVideoData();
 
     // Constructor
     WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos);
@@ -111,6 +142,7 @@ private:
     int WorkspaceID;
 
     videoPos videoPos;
+
 
 public:
     //Main terminal window address

@@ -28,6 +28,8 @@ zamn idk where to start
 22. Use current cursor location, instead of top left, but maybe not
 23. Add audio support from the producer
 24. add video path modularity in DataType.hppp in theres siawfoijweeoi weeo
+25. Add universal videodata, either in the consumer / or producer
+26. what if the config isnt yet built
 
 video :
 1. use kitty, ghossty, WezTerm

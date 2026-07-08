@@ -25,11 +25,45 @@ void GetOverlap(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry
         viewPort.overlap_w = o_x2 - o_x1;
         viewPort.overlap_h = o_y2 - o_y1;
     } else {
-        // No overlap; reset the state to safe zeros
+        // No overlap; reset the state to safe zeros    
         viewPort.isRender = false;
         viewPort.overlap_x = 0;
         viewPort.overlap_y = 0;
         viewPort.overlap_w = 0;
         viewPort.overlap_h = 0;
     }
+}
+
+// Main
+void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState& viewPort, WindowPos windowPos, videoData videoData, layoutRender& layoutRender){
+
+    GetOverlap(v_x1, v_y1, v_x2, v_y2, internalTerminalGeometry, viewPort);
+
+    if (!viewPort.isRender) {
+        std::cerr << "LayoutCalculation : The video isnt overlaping" << std::endl;
+        return;
+    }
+
+    // Get scaling
+    double scale_x = (double)videoData.video_w / internalTerminalGeometry.w;
+    double scale_y = (double)videoData.video_h / internalTerminalGeometry.h;
+
+    layoutRender.x = (int)((viewPort.overlap_x - v_x1) * scale_x);
+    layoutRender.y = (int)((viewPort.overlap_y - v_y1) * scale_y);
+    layoutRender.w = (int)(viewPort.overlap_w * scale_x);
+    layoutRender.h = (int)(viewPort.overlap_h * scale_y);
+
+    // Calculate local pixel 
+    int local_pixel_x = viewPort.overlap_x - internalTerminalGeometry.grid_screen_x;
+    int local_pixel_y = viewPort.overlap_y - internalTerminalGeometry.grid_screen_y;
+
+    // Update render
+    layoutRender.cursor_col = (local_pixel_x / internalTerminalGeometry.cell_w) + 1;
+    layoutRender.cursor_row = (local_pixel_y / internalTerminalGeometry.cell_h) + 1;
+    
+    layoutRender.sub_offset_x = local_pixel_x % internalTerminalGeometry.cell_w;
+    layoutRender.sub_offset_y = local_pixel_y % internalTerminalGeometry.cell_h;
+
+    layoutRender.disp_cols = viewPort.overlap_w / internalTerminalGeometry.cell_w;
+    layoutRender.disp_rows = viewPort.overlap_h / internalTerminalGeometry.cell_h;
 }

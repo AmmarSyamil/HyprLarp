@@ -19,6 +19,50 @@
 #include <cstdlib>
 #include "terminalLayout.hpp"
 
+extern "C" {
+    #include <libavformat/avformat.h>
+}
+
+// Function to get videometadata
+int WindowData::GetVideoData() {
+    const char* filename = this->videoData.videoPath.c_str();
+    AVFormatContext* format_ctx = nullptr;
+
+    if (avformat_open_input(&format_ctx, filename, nullptr, nullptr) != 0) {
+        std::cerr << "Could not open file\n";
+        return -1;
+    }
+
+    if (avformat_find_stream_info(format_ctx, nullptr) < 0) {
+        std::cerr << "Could not find stream information\n";
+        avformat_close_input(&format_ctx);
+        return -1;
+    }
+
+    for (unsigned int i = 0; i < format_ctx->nb_streams; i++) {
+        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            AVCodecParameters* codec_params = format_ctx->streams[i]->codecpar;
+            AVStream* stream = format_ctx->streams[i];
+
+            this->videoData.video_w = codec_params->width;
+            this->videoData.video_h= codec_params->height;
+            
+            // Calculate FPS reliably via fractional numbers
+            this->videoData.fps = 0.0;
+
+            if (stream->avg_frame_rate.den > 0) {
+                this->videoData.fps = static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
+            }
+
+            break;
+        }
+    }
+
+    avformat_close_input(&format_ctx);
+
+    return 0;
+};
+
 // Function to check wether the config file already exist or not
 bool configFileExists(const std::string& path) {
     // std::filesystem::exists returns true if the path exists, false otherwise
@@ -72,6 +116,7 @@ WorkspaceData::WorkspaceData() {
 }
 
 // Constructor function
+// updated version
 WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos) {
     
     // Put requirement data into the object
@@ -97,9 +142,13 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     GetWindowPosCartesian();
 
-    // Setup viewport
-    GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
+    GetVideoData();
 
+    // Setup viewport
+    // GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
+
+    // Setup terminalLayout
+    layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
 }
 
 // Overload Constructor function

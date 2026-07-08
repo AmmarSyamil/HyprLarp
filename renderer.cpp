@@ -5,12 +5,16 @@
 
 #include "base64converter.hpp"
 #include <filesystem>
-
+#include "DataType.hpp"
 
 // Function to display to write the escape sequences
-int escSequence(int width, int height, int image_size, std::string& imageSHM, int videoHeaderSize) {
+int escSequence(int width, int height, int image_size, std::string& imageSHM, const layoutRender layoutRender, ViewportState vp) {
+    // Check wether its should be rendering or not
+    if (!vp.isRender) {
+        // std::cerr << "EscSequence : ViewPortState is render is set to false" << std::endl;
+        return 0; 
+    }
 
-    // test shmfilename
     std::string SHMfileName = imageSHM;
     std::string real_path = "/dev/shm/" + SHMfileName;
     if (std::filesystem::exists(real_path)) {
@@ -19,55 +23,51 @@ int escSequence(int width, int height, int image_size, std::string& imageSHM, in
         std::cerr << "The file is genuinely not at pre display " << real_path << std::endl;
     }
 
-    std::string shm_basename = imageSHM;
-    // if (!shm_basename.empty() && shm_basename[0] == '/') {
-        // shm_basename = shm_basename.substr(1);
-    // }
+    // Convert to base64 for kitty
+    std::string b64_shm_name = base64Converter(SHMfileName);
 
-    // std::cerr << "Base64  base encoded: '" << shm_basename<< "'\n";
-
-    std::string b64_shm_name = base64Converter(shm_basename);
-
-//     std::cout << "escsequence start" << std::endl;
-//     std::cout << "escsequence imageSHM name " << imageSHM << std::endl;
-//     std::cout << "escsequence Image SHM name encoded " << b64_shm_name << std::endl;
-
-    int pixel_data_sizes = width * height * 4;
+    // Move the cursor to theexact row and column cell
+    std::string move_cursor = "\x1b[" + std::to_string(layoutRender.cursor_row) + ";" 
+                                      + std::to_string(layoutRender.cursor_col) + "H";
+    // write(STDOUT_FILENO, move_cursor.c_str(), move_cursor.size());
 
     // Create the escape sequence string
-    std::string escape = "\x1b_Ga=T,f=32,s=" + std::to_string(width) + 
-                     ",v=" + std::to_string(height) + 
-                     ",t=s,O=0,S=" + std::to_string(pixel_data_sizes) +
-                     ",i=1"
-                     ",q=2;" + b64_shm_name + "\x1b\\";
+    // std::string escape = "\x1b_Ga=T,f=32,s=" + std::to_string(width) + 
+    //                  ",v=" + std::to_string(height) + 
+    //                  ",t=s,O=0,S=" + std::to_string(pixel_data_sizes) +
+    //                  ",i=1"
+    //                  ",q=2;" + b64_shm_name + "\x1b\\";
+
+    std::string escape = 
+        "\x1b_G"
+        "a=T"                     // Action: Transmit and display
+        ",f=32"                   // Format: 32-bit RGBA
+        ",t=s"                    // Transmission: Shared Memory
+        ",i=1"                    // Re-use Image ID 1 (prevents GPU memory leaks)
+        ",q=2"                    // Quiet mode (mutes terminal confirmations)
+        ",s=" + std::to_string(width) +   // Total width of the raw SHM buffer frame
+        ",v=" + std::to_string(height) +  // Total height of the raw SHM buffer frame
+        ",x=" + std::to_string(layoutRender.x) +    // Start X column of the source video crop
+        ",y=" + std::to_string(layoutRender.y) +    // Start Y row of the source video crop
+        ",w=" + std::to_string(layoutRender.w) +    // Width size of our source video crop
+        ",h=" + std::to_string(layoutRender.h) +    // Height size of our source video crop
+        ",c=" + std::to_string(layoutRender.disp_cols) + // Columns of text grid space to span on screen
+        ",r=" + std::to_string(layoutRender.disp_rows) + // Rows of text grid space to span on screen
+        ",X=" + std::to_string(layoutRender.sub_offset_x) + // Fractional X pixel nudge inside the cell
+        ",Y=" + std::to_string(layoutRender.sub_offset_y) + // Fractional Y pixel nudge inside the cell
+        ";" + b64_shm_name +      // The base64 name of our shared memory segment
+        "\x1b\\";                 // Close the sequence
 
     // Cursor
-    write(STDOUT_FILENO, "\x1b[H", 3); // Move cursor to top-left corner
+    // write(STDOUT_FILENO, "\x1b[H", 3); // Move cursor to top-left corner
+
+    std::string final_render_packet = move_cursor + escape;
     
     // Using writeFirst pixel byte:
-    write(STDOUT_FILENO, escape.c_str(), escape.size());
+    write(STDOUT_FILENO, final_render_packet.c_str(), final_render_packet.size());
     fflush(stdout);
-
-    // Using  cout and flush
-    // std::cout << escape << std::flush;
-
-    // if (!isatty(STDOUT_FILENO)) {
-    //     std::cerr << "Error: stdout is not a terminal!" << std::endl;
-    // }
-
-    // if (write(STDOUT_FILENO, escape.c_str(), escape.size()) == -1) {
-    //     perror("Failed to write escape sequence");
-    //     return 0;
-    // }
-
-    // std::cerr << "Escape sequence hex: ";
-    // for (unsigned char c : escape) {
-    //     fprintf(stderr, "%02x ", c);
-    // }
-    fprintf(stderr, "\n");
+    // fprintf(stderr, "\n");
     
-//     std::cout << "displayed finish" << std::endl;
-
     return 1;
 }
 
