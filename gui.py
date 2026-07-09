@@ -535,9 +535,11 @@ class MainWindow(QMainWindow):
             
         self.workspace.save_config(self.video_path)
 
-
-if __name__ == "__main__":
+def run_gui():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    run_gui()

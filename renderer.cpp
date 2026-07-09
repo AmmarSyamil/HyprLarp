@@ -8,7 +8,7 @@
 #include "DataType.hpp"
 
 // Function to display to write the escape sequences
-int escSequence(int width, int height, int image_size, std::string& imageSHM, const layoutRender layoutRender, ViewportState vp) {
+int escSequence(int width, int height, std::string& imageSHM, const layoutRender layoutRender, ViewportState vp) {
     // Check wether its should be rendering or not
     if (!vp.isRender) {
         // std::cerr << "EscSequence : ViewPortState is render is set to false" << std::endl;

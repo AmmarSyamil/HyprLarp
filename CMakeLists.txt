@@ -11,8 +11,6 @@ find_package(nlohmann_json 3.2.0 QUIET)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SH4LT REQUIRED IMPORTED_TARGET sh4lt-0.3)
 
-
-
 # If nlohmann_json is not found, try to fetch it
 if(NOT nlohmann_json_FOUND)
     message(STATUS "nlohmann_json not found, attempting to fetch from GitHub...")
@@ -25,3 +23,5 @@ endif()
 add_subdirectory(main)
 add_subdirectory(producer)
 add_subdirectory(consumer)
+add_subdirectory(GUI)
+

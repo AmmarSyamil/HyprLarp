@@ -11,8 +11,8 @@ static void handle_signal(int) {
     _exit(1);
 }
 
-// consumer.cpp.
-int main() {
+// Main entreies toward consumer
+int mainConsumer() {
     std::signal(SIGINT, handle_signal);
     std::signal(SIGTERM, handle_signal);
 
@@ -24,7 +24,7 @@ int main() {
     // Cleaen the terminal
     std::cout << "\033[2J\033[H" << std::flush;
 
-    cons.setupSHMfileName(1); // Create SHM filename
+    cons.setupSHMfilesetupSHMName(1); // Create SHM filename
     cons.setupSHM();    // Create and initialize the SHM  
 
     while (true) {
@@ -32,11 +32,13 @@ int main() {
 
         if (cons.populateSHM() == -1) {
             // std::cerr << "consumer: failed to populate SHM" << std::endl;
+            throw std::runtime_error("Cannot divide by zero!");
             break;
         }
 
         if (cons.displayImage() == -1) {
             // std::cerr << "consumer: failed to display image" << std::endl;
+            throw std::runtime_error("Cannot divide by zero!");
             break;
         }
 
@@ -46,7 +48,5 @@ int main() {
 
     // Show cursor again
     std::cout << "\033[?25h" << std::flush;
-
-//     std::cout << "consumer: exiting" << std::endl;
     return 0;
 }

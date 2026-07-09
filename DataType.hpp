@@ -171,7 +171,7 @@ public:
 
     // refresh data
     // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.
-
+    
     // struct videoPos GiveVideoPos() {
         // return this->videoPos;
     // };

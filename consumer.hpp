@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include "shm.hpp"
+#include <stdexcept>
 #include <vector>
 
 #include "renderer.hpp"
@@ -139,19 +140,11 @@ public:
 //             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
         } else {
 //             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
+            // std::cerr << "consumer"
+            throw std::runtime_error("consumer displayImage : Failed to find corespond SHMfile");
         }
 
-        // Test SHM - commented out due to disk I/O latency overhead
-        // int test = testSHM(image_size, width, height, SHMfileName);
-        // if (test == -1) {
-        //     return -1;
-        // }
-
-
-
-//         std::cout << "pre escsequence shmfilename " << SHMfileName << std::endl;
         escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
-//         std::cout << "displayImage : escSequences runned" << std::endl;
 
         return 1;
     }
@@ -235,3 +228,5 @@ public:
         }
     }
 };
+
+int mainConsumer();

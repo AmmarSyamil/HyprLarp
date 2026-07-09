@@ -1,5 +1,6 @@
 #pragma once
 
-#include <iostream>
+#include "DataType.hpp"
 
-int escSequence(int width, int height, int image_size, std::string& imageSHM, int videoHeaderSize);
+
+int escSequence(int width, int height, std::string& imageSHM, const layoutRender layoutRender, ViewportState vp);
