@@ -44,11 +44,9 @@ private:
     int numberFrame = 0;
     int video_stream_idx = -1;
     int frame_counter = 0;
-    int frameRate;
     SwsContext* sws_ctx = nullptr;  // Reuse SWS context for all frames
 
     uint8_t* shm = nullptr;
-    uint8_t RGBAData{};
 
     // Helper function to safely copy raw data out of FFmpeg's padded linesizes
     void copy_plane(const uint8_t* src, int src_linesize, uint8_t* dest, int width, int height) {
@@ -164,7 +162,7 @@ public:
         }
 
         // Setup producer SHM with header for metadata
-        shm = createSHM(width, height, "/vp_static", true);  // true = with header
+        shm = createSHM(width, height, "/Hyprlarp-Producer", true);  // true = with header
         if (!shm) {
             std::cerr << "Failed to allocate initialization SHM" << std::endl;
             close(); // Clean up allocated FFmpeg resources

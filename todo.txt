@@ -31,8 +31,10 @@ zamn idk where to start
 25. Add universal videodata, either in the consumer / or producer
 26. what if the config isnt yet built
 27. use std::runtime_error // clean debug // clean error logging
-28. CHange /vp_static into /HyprLarp-Producer
+( v ). CHange /vp_static into /HyprLarp-Producer
 29. COmbine the layout thingy
+
+
 video :
 1. use kitty, ghossty, WezTerm
 2. SHM memory IPC shit

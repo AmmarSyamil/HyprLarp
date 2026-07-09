@@ -85,7 +85,7 @@ int testSHM(int image_size, int width, int height, std::string shmFileName) {
 
 // Function to open producer SHM / for consumer
 uint8_t* openSHM() {
-    int fd = shm_open(normalizeSHMName("/vp_static").c_str(), O_RDWR, 0600); // 0600 = read write acces to current
+    int fd = shm_open(normalizeSHMName("/Hyprlarp-Producer").c_str(), O_RDWR, 0600); // 0600 = read write acces to current
     if (fd == -1) {
         std::cerr <<"Error at openSHM : SHM does not exist yet" << std::endl;
         return nullptr;
@@ -213,17 +213,11 @@ int exitSHM(void* addr, int data_size) {
         munmap(addr, data_size);
     }
     return 1;
-
-    // if (shm_unlink("/vp_static") == -1){
-    //     return -1;
-    // }; 
-
-    // return 1;
 }
 
 // Get image data from the main (producer) SHM (might change implementation due to dynamic video resolution)
 std::vector<int> getImageSHM() {
-    int fd = shm_open("/vp_static", O_RDONLY, 0644); // Open main SHM
+    int fd = shm_open("/Hyprlarp-Producer", O_RDONLY, 0644); // Open main SHM
     if (fd == -1) {
         std::cerr << "getImageSHM: Could not open SHM (from file descriptor)" << std::endl;
         return {0, 0, 0, 0};
@@ -238,7 +232,7 @@ std::vector<int> getImageSHM() {
     }
     
     size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
-    std::cerr << "getImageSHM: /vp_static size = " << dataStat.st_size << " bytes, controlHeader size = " << header_size << std::endl;
+    std::cerr << "getImageSHM: /Hyprlarp-Producer size = " << dataStat.st_size << " bytes, controlHeader size = " << header_size << std::endl;
     
     if (dataStat.st_size < static_cast<off_t>(header_size)) {
         std::cerr << "getImageSHM: Shared memory is not initialized or too small" << std::endl;
@@ -275,7 +269,7 @@ std::vector<int> getImageSHM() {
 
 // Function to delete the SHM
 int deleteSHM() {
-    shm_unlink(normalizeSHMName("/vp_static").c_str());
+    shm_unlink(normalizeSHMName("/Hyprlarp-Producer").c_str());
     return 1;
 };
 

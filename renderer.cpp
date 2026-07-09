@@ -2,13 +2,14 @@
 #include <iostream>
 #include <unistd.h>
 #include <string>
+#include <cstdio>
 
 #include "base64converter.hpp"
 #include <filesystem>
 #include "DataType.hpp"
 
 // Function to display to write the escape sequences
-int escSequence(int width, int height, std::string& imageSHM, const layoutRender layoutRender, ViewportState vp) {
+int escSequence(int width, int height, std::string& imageSHM, const LayoutRender layoutRender, ViewportState vp) {
     // Check wether its should be rendering or not
     if (!vp.isRender) {
         // std::cerr << "EscSequence : ViewPortState is render is set to false" << std::endl;
@@ -68,6 +69,27 @@ int escSequence(int width, int height, std::string& imageSHM, const layoutRender
     fflush(stdout);
     // fprintf(stderr, "\n");
     
+    return 1;
+}
+
+
+// Version 2
+int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
+    if (!vp.isRender) return 0; 
+
+    char buf[512];
+    int n = snprintf(buf, sizeof(buf),
+        "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
+        lr.cursor_row, lr.cursor_col, 
+        width, height,
+        lr.x, lr.y, lr.w, lr.h, 
+        lr.disp_cols, lr.disp_rows,
+        lr.sub_offset_x, lr.sub_offset_y, 
+        b64_shm.c_str()
+    );
+
+    // Single write syscall
+    write(STDOUT_FILENO, buf, n);
     return 1;
 }
 

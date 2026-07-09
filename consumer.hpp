@@ -3,10 +3,9 @@
 #pragma once
 
 #include <iostream>
+#include "DataType.hpp"
 #include "shm.hpp"
-#include <stdexcept>
 #include <vector>
-
 #include "renderer.hpp"
 #include "shm.hpp"
 extern "C" {
@@ -15,12 +14,18 @@ extern "C" {
 #include <fcntl.h>
 #include <unistd.h>
 }
-#include "videoDecoder.hpp"
-#include <filesystem>
+#include "base64converter.hpp"
+#include "layoutSHM.hpp"
 
 class consumer
 {
 private:
+    std::string BaseSHMName;
+    std::string B64SHMName;
+    LayoutRender layoutRender;
+    ViewportState viewPort;
+
+
     uint8_t* ProducerSHMPtr = nullptr; // ptr to main producer shm file
     uint8_t* shmPtr = nullptr; // pointer to the shm of the producer 
     std::string SHMfileName;
@@ -128,24 +133,56 @@ public:
     }
 
     // Function to display the image of the SHM
-    int displayImage() {
-        if (width == 0 || height == 0) {
-            std::cerr << "dispalyImage : unvalid width and height" << std::endl;
+    // deprecated
+//     int displayImage() {
+//         if (width == 0 || height == 0) {
+//             std::cerr << "dispalyImage : unvalid width and height" << std::endl;
+//             return -1;
+//         }
+
+//         // Check SHM
+//         std::string real_path = std::string("/dev/shm/") + SHMfileName;
+//         if (std::filesystem::exists(real_path)) {
+// //             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
+//         } else {
+// //             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
+//             // std::cerr << "consumer"
+//             throw std::runtime_error("consumer displayImage : Failed to find corespond SHMfile");
+//         }
+
+//         escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
+
+//         return 1;
+//     }
+
+    // use this instead
+    int renderFrame() {
+        controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
+        
+        uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
+        if (seq == last_sequence) return 0; // No new frame
+        
+        uint32_t slot = header->write_slot_index.load(std::memory_order_acquire);
+        if (header->global_sequences.load(std::memory_order_acquire) != seq) return 0;
+        if (slot >= header->num_sloth) return 0;
+
+        int fd = shm_open(("/" + BaseSHMName).c_str(), O_CREAT | O_RDWR, 0600);
+        if (fd == -1) return -1;
+        ftruncate(fd, image_size);
+        
+        uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        close(fd);
+        if (consSHM == MAP_FAILED) return -1;
+
+        if (readFrameFromSlot(ProducerSHMPtr, slot, consSHM) == -1) {
+            munmap(consSHM, image_size);
             return -1;
         }
 
-        // Check SHM
-        std::string real_path = std::string("/dev/shm/") + SHMfileName;
-        if (std::filesystem::exists(real_path)) {
-//             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
-        } else {
-//             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
-            // std::cerr << "consumer"
-            throw std::runtime_error("consumer displayImage : Failed to find corespond SHMfile");
-        }
+        escSequence(width, height, B64SHMName, layoutRender, viewPort);
 
-        escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
-
+        munmap(consSHM, image_size);
+        last_sequence = seq;
         return 1;
     }
 
@@ -186,7 +223,7 @@ public:
         if (width <= 0 || height <= 0 || image_size <= 0) {
             std::cerr << "getImageData: Invalid video dimensions - width=" << width 
                       << ", height=" << height << ", image_size=" << image_size << std::endl;
-            std::cerr << "getImageData: Producer SHM (/vp_static) not ready. Start producer first." << std::endl;
+            std::cerr << "getImageData: Producer SHM (/HyprLarp-Producer) not ready. Start producer first." << std::endl;
             width = height = image_size = videoHeaderSize = 0;
             return -1;
         }
@@ -195,23 +232,12 @@ public:
     }
 
     // Class constructor
+    // act just for nulling value, use init function for gathering initial data
     consumer() {
-        int result = getImageData(); // Populate basic video data
-        
-        if (result != 1) {
-            std::cerr << "consumer: Failed to get image data from producer SHM" << std::endl;
-            return;
-        }
-
-        // Testing
-//         std::cout << "Testing ground first one " << height << " " <<width << " " << image_size << std::endl;
-
-        ProducerSHMPtr = openSHM(); // Setup shm ptr 
-        if (!ProducerSHMPtr) {
-            std::cerr << "consumer: Failed to open producer SHM" << std::endl;
-            return;
-        }
-        // displayImage();
+        ProducerSHMPtr = nullptr;
+        shmPtr = nullptr;
+        width = height = image_size = 0;
+        last_sequence = static_cast<uint64_t>(-1);
     }
 
     ~consumer() {
@@ -226,6 +252,62 @@ public:
             shm_unlink(SHMfileName.c_str());
             shmPtr = nullptr;
         }
+    }
+
+    bool fetchLayout() {
+        int fd = shm_open("/HyprLarp_layout", O_RDONLY, 0);
+        if (fd == -1) return false;
+
+        LayoutHeader* hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader), PROT_READ, MAP_SHARED, fd, 0);
+        
+        close(fd);
+        if (!hdr) return false;
+
+        pid_t myPid = getpid();
+        uint32_t n = hdr->count.load(std::memory_order_acquire);
+        for (uint32_t i = 0; i < n && i < MAX_WINDOWS; ++i) {
+            auto& e = hdr->entries[i];
+            if (!e.valid) continue;
+            if (e.pid == myPid) {
+                // Copy layout
+                layoutRender.x = e.x;
+                layoutRender.y = e.y;
+                layoutRender.w = e.w;
+                layoutRender.h = e.h;
+                layoutRender.cursor_col = e.cursor_col;
+                layoutRender.cursor_row = e.cursor_row;
+                layoutRender.disp_cols = e.disp_cols;
+                layoutRender.disp_rows = e.disp_rows;
+                layoutRender.sub_offset_x = e.sub_offset_x;
+                layoutRender.sub_offset_y = e.sub_offset_y;
+
+                // Copy viewport
+                viewPort.isRender = e.isRender;
+                viewPort.overlap_x = e.overlap_x;
+                viewPort.overlap_y = e.overlap_y;
+                viewPort.overlap_w = e.overlap_w;
+                viewPort.overlap_h = e.overlap_h;
+
+                munmap(hdr, sizeof(LayoutHeader));
+                return true;
+            }
+        }
+        munmap(hdr, sizeof(LayoutHeader));
+        return false;
+        
+    }
+
+    // Function to setup the class
+    bool init() {
+        if (getImageData() != 1) return false;
+        ProducerSHMPtr = openSHM();
+        if (!ProducerSHMPtr) return false;
+
+
+        BaseSHMName = "HyprLarp_" + std::to_string(getpid());
+        B64SHMName = base64Converter(BaseSHMName);
+
+        return fetchLayout();
     }
 };
 

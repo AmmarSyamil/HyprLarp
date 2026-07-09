@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
@@ -57,7 +58,7 @@ struct ViewportState {
 };
 
 // Render struct data
-struct layoutRender {
+struct LayoutRender {
     int x;
     int y;
     int w;
@@ -82,7 +83,7 @@ struct videoData {
 class WindowData {
 private:
 
-    layoutRender layoutRender;
+    LayoutRender layoutRender;
 
     videoData videoData;
 
@@ -106,7 +107,13 @@ private:
     // window type {1: main, 0 : sub}
     int windowType;
 
+    pid_t pid = 0;
+
 public:
+    // Helper function
+    const LayoutRender& getLayoutRender() const { return layoutRender; }
+    const ViewportState& getViewport() const { return viewPort; }
+    const pid_t& getPid() const { return pid; }
 
     std::vector<int> windowPosition;
     
@@ -145,6 +152,8 @@ private:
 
 
 public:
+    const std::vector<WindowData>& getWindowData() const { return windowData; }
+
     //Main terminal window address
     std::string mainTerminalWindowID;
 
@@ -171,7 +180,7 @@ public:
 
     // refresh data
     // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.
-    
+
     // struct videoPos GiveVideoPos() {
         // return this->videoPos;
     // };

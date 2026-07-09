@@ -122,9 +122,14 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // Put requirement data into the object
     this->windowID = windowID;
     this->windowType = windowType;
-    
+
     // Find position of the window
     this->windowPos = GetWindowPos(data);
+    
+    if (data.contains("pid")) {
+        pid = data["pid"];
+    }
+    
 
     // Get internal data
     this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
