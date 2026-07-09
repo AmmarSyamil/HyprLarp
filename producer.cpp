@@ -56,7 +56,7 @@ int setupWorkspaceData() {
     // Get windowData
     workspaceData.FetchWindowID();
 
-
+    return 0;
 };
 
 static void handle_signal(int) {

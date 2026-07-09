@@ -35,7 +35,7 @@ void GetOverlap(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry
 }
 
 // Main
-void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState& viewPort, WindowPos windowPos, videoData videoData, layoutRender& layoutRender){
+void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState& viewPort, WindowPos windowPos, videoData videoData, LayoutRender& layoutRender){
 
     GetOverlap(v_x1, v_y1, v_x2, v_y2, internalTerminalGeometry, viewPort);
 

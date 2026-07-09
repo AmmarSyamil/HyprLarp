@@ -1,22 +1,16 @@
+#include "gui.hpp" // Include the header file
+
 #include <QApplication>
-#include <QMainWindow>
-#include <QWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QLabel>
-#include <QPushButton>
 #include <QFileDialog>
 #include <QScreen>
 #include <QPainter>
-#include <QColor>
 #include <QPen>
 #include <QBrush>
 #include <QCursor>
 #include <QRegion>
 #include <QFont>
-#include <QRect>
-#include <QPoint>
-#include <QSize>
 #include <QMouseEvent>
 #include <QMoveEvent>
 #include <QResizeEvent>
@@ -28,15 +22,14 @@
 #include <QDir>
 #include <QDebug>
 #include <QStandardPaths>
+#include <QStringList>
 
 #include <opencv2/opencv.hpp>
 #include <cmath>
 #include <algorithm>
 
-
-class WorkspaceArea;
-
-static QSize getMonitorResolution() {
+// Utility functions
+QSize getMonitorResolution() {
     QScreen* screen = QApplication::primaryScreen();
     if (screen) {
         QRect geometry = screen->availableGeometry();
@@ -45,7 +38,7 @@ static QSize getMonitorResolution() {
     return QSize(1920, 1080);
 }
 
-static QSize getVideoResolution(const QString& path) {
+QSize getVideoResolution(const QString& path) {
     cv::VideoCapture cap(path.toStdString());
     if (!cap.isOpened()) {
         qDebug() << "Error: Failed to open video" << path;
@@ -57,78 +50,12 @@ static QSize getVideoResolution(const QString& path) {
     return QSize(width, height);
 }
 
-static QString getConfigPath() {
+QString getConfigPath() {
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     return configDir + "/HyprLarp.json";
 }
 
-class VideoArea : public QWidget {
-public:
-    QSize monitorRatio;
-    QSize videoRatio;
-
-    QColor bgColor;
-    QColor borderColor;
-    QColor handleColor;
-    int handleRadius;
-    int handleRadiusHover;
-
-    bool dragging;
-    bool resizing;
-    QString activeCorner;
-    QPoint startPos;
-    QRect widgetStartGeo;
-
-    double currentScale;
-    QRect realRect;
-    QString hoveredCorner;
-
-    VideoArea(QSize monitorRatio, QSize videoRatio, QWidget* parent = nullptr);
-
-    void updateRealGeometry();
-    QRect getCornerRect(const QString& name) const;
-    QPoint getCornerCenter(const QString& name) const;
-    QString checkCornerHover(const QPoint& pos) const;
-    void performResize(const QPoint& currentPos);
-    void resetGeometry(const QRect& rect);
-
-protected:
-    void paintEvent(QPaintEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void moveEvent(QMoveEvent* event) override;
-    void resizeEvent(QResizeEvent* event) override;
-};
-
-class WorkspaceArea : public QWidget {
-public:
-    QSize displayRatio;
-    QSize videoRatio;
-
-    VideoArea* videoArea;
-    QLabel* debugLabel;
-    QLabel* noVideoLabel;
-    QRect currentWorkspaceRect;
-
-    QSize videoBaseSize;
-    QVector<QPoint> pendingConfigCorners;
-
-    WorkspaceArea(QSize displayRatio, QSize videoRatio, QWidget* parent = nullptr);
-
-    void updateLayout();
-    void updateVideoMask();
-    void resetVideo();
-    void updateDebugInfo();
-    void initUi();
-    void createVideoArea();
-    void saveConfig(const QString& videoPath);
-
-protected:
-    void resizeEvent(QResizeEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
-};
-
+// VideoArea Implementation
 VideoArea::VideoArea(QSize monitorRatio_, QSize videoRatio_, QWidget* parent)
     : QWidget(parent),
       monitorRatio(monitorRatio_),
@@ -355,7 +282,7 @@ void VideoArea::resetGeometry(const QRect& rect) {
     update();
 }
 
-
+// WorkspaceArea Implementation
 WorkspaceArea::WorkspaceArea(QSize displayRatio_, QSize videoRatio_, QWidget* parent)
     : QWidget(parent),
       displayRatio(displayRatio_),
@@ -566,131 +493,119 @@ void WorkspaceArea::saveConfig(const QString& videoPath) {
     }
 }
 
-class MainWindow : public QMainWindow {
-public:
-    QSize monitorRatio;
-    QString videoPath;
-    QSize videoRatio;
-    QVector<QPoint> configCorners;
+// MainWindow Implementation
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+    setWindowTitle("Video Layout Tool (Resizable)");
+    resize(800, 600);
 
-    WorkspaceArea* workspace;
-    QPushButton* openBtn;
-    QPushButton* saveBtn;
-    QPushButton* resetBtn;
+    monitorRatio = getMonitorResolution();
+    videoRatio = QSize(0, 0);
 
-    MainWindow(QWidget* parent = nullptr) : QMainWindow(parent) {
-        setWindowTitle("Video Layout Tool (Resizable)");
-        resize(800, 600);
+    loadConfig();
 
-        monitorRatio = getMonitorResolution();
-        videoRatio = QSize(0, 0);
-
-        loadConfig();
-
-        qDebug() << "Monitor:" << monitorRatio.width() << "x" << monitorRatio.height();
-        if (videoRatio != QSize(0, 0)) {
-            qDebug() << "Loaded Video:" << videoRatio.width() << "x" << videoRatio.height();
-        }
-
-        QWidget* centralWidget = new QWidget(this);
-        setCentralWidget(centralWidget);
-        QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
-        mainLayout->setContentsMargins(20, 20, 20, 20);
-        mainLayout->setSpacing(10);
-
-        workspace = new WorkspaceArea(monitorRatio, videoRatio);
-        mainLayout->addWidget(workspace);
-
-        if (!configCorners.isEmpty()) {
-            workspace->pendingConfigCorners = configCorners;
-        }
-
-        QHBoxLayout* controlsLayout = new QHBoxLayout();
-
-        openBtn = new QPushButton("Open Video");
-        QObject::connect(openBtn, &QPushButton::clicked, [this]() { this->openVideo(); });
-        controlsLayout->addWidget(openBtn);
-
-        saveBtn = new QPushButton("Save Config");
-        QObject::connect(saveBtn, &QPushButton::clicked, [this]() { this->saveConfig(); });
-        controlsLayout->addWidget(saveBtn);
-
-        resetBtn = new QPushButton("Reset Position & Size");
-        QObject::connect(resetBtn, &QPushButton::clicked, [this]() { this->workspace->resetVideo(); });
-        controlsLayout->addStretch();
-        controlsLayout->addWidget(resetBtn);
-
-        mainLayout->addLayout(controlsLayout);
-
-        workspace->initUi();
-
-        if (videoPath.isEmpty()) {
-            workspace->noVideoLabel->setVisible(true);
-        }
+    qDebug() << "Monitor:" << monitorRatio.width() << "x" << monitorRatio.height();
+    if (videoRatio != QSize(0, 0)) {
+        qDebug() << "Loaded Video:" << videoRatio.width() << "x" << videoRatio.height();
     }
 
-    void loadConfig() {
-        QString configPath = getConfigPath();
-        QFile file(configPath);
-        if (file.exists()) {
-            if (file.open(QIODevice::ReadOnly)) {
-                QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                if (doc.isObject()) {
-                    QJsonObject config = doc.object();
+    QWidget* centralWidget = new QWidget(this);
+    setCentralWidget(centralWidget);
+    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(10);
 
-                    QString vPath = config.value("videoPath").toString();
-                    QJsonArray cornersArray = config.value("cornerLocation").toArray();
+    workspace = new WorkspaceArea(monitorRatio, videoRatio);
+    mainLayout->addWidget(workspace);
 
-                    if (!vPath.isEmpty() && QFile::exists(vPath) && cornersArray.size() == 4) {
-                        videoPath = vPath;
-                        videoRatio = getVideoResolution(vPath);
-                        configCorners.clear();
-                        for (int i = 0; i < 4; i++) {
-                            QJsonArray c = cornersArray.at(i).toArray();
-                            configCorners.append(QPoint(c.at(0).toInt(), c.at(1).toInt()));
-                        }
-                        qDebug() << "Loaded config from" << configPath;
-                    } else {
-                        qDebug() << "Config ignored: Video file missing or corners invalid.";
+    if (!configCorners.isEmpty()) {
+        workspace->pendingConfigCorners = configCorners;
+    }
+
+    QHBoxLayout* controlsLayout = new QHBoxLayout();
+
+    openBtn = new QPushButton("Open Video");
+    QObject::connect(openBtn, &QPushButton::clicked, [this]() { this->openVideo(); });
+    controlsLayout->addWidget(openBtn);
+
+    saveBtn = new QPushButton("Save Config");
+    QObject::connect(saveBtn, &QPushButton::clicked, [this]() { this->saveConfig(); });
+    controlsLayout->addWidget(saveBtn);
+
+    resetBtn = new QPushButton("Reset Position & Size");
+    QObject::connect(resetBtn, &QPushButton::clicked, [this]() { this->workspace->resetVideo(); });
+    controlsLayout->addStretch();
+    controlsLayout->addWidget(resetBtn);
+
+    mainLayout->addLayout(controlsLayout);
+
+    workspace->initUi();
+
+    if (videoPath.isEmpty()) {
+        workspace->noVideoLabel->setVisible(true);
+    }
+}
+
+void MainWindow::loadConfig() {
+    QString configPath = getConfigPath();
+    QFile file(configPath);
+    if (file.exists()) {
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (doc.isObject()) {
+                QJsonObject config = doc.object();
+
+                QString vPath = config.value("videoPath").toString();
+                QJsonArray cornersArray = config.value("cornerLocation").toArray();
+
+                if (!vPath.isEmpty() && QFile::exists(vPath) && cornersArray.size() == 4) {
+                    videoPath = vPath;
+                    videoRatio = getVideoResolution(vPath);
+                    configCorners.clear();
+                    for (int i = 0; i < 4; i++) {
+                        QJsonArray c = cornersArray.at(i).toArray();
+                        configCorners.append(QPoint(c.at(0).toInt(), c.at(1).toInt()));
                     }
+                    qDebug() << "Loaded config from" << configPath;
                 } else {
-                    qDebug() << "Error reading config: Invalid JSON";
+                    qDebug() << "Config ignored: Video file missing or corners invalid.";
                 }
-            }
-        }
-    }
-
-    void openVideo() {
-        QString filepath = QFileDialog::getOpenFileName(
-            this, "Open Video File", "", "Video Files (*.mp4 *.avi *.mkv *.mov)");
-        if (!filepath.isEmpty()) {
-            videoPath = filepath;
-            videoRatio = getVideoResolution(filepath);
-
-            workspace->videoRatio = videoRatio;
-
-            if (!workspace->videoArea) {
-                workspace->createVideoArea();
             } else {
-                workspace->videoArea->videoRatio = videoRatio;
-                workspace->videoArea->realRect = QRect(0, 0, 0, 0);
+                qDebug() << "Error reading config: Invalid JSON";
             }
-
-            workspace->updateLayout();
-            workspace->videoArea->update();
         }
     }
+}
 
-    void saveConfig() {
-        if (videoPath.isEmpty() || !workspace->videoArea) {
-            qDebug() << "No video loaded to save.";
-            return;
+void MainWindow::openVideo() {
+    QString filepath = QFileDialog::getOpenFileName(
+        this, "Open Video File", "", "Video Files (*.mp4 *.avi *.mkv *.mov)");
+    if (!filepath.isEmpty()) {
+        videoPath = filepath;
+        videoRatio = getVideoResolution(filepath);
+
+        workspace->videoRatio = videoRatio;
+
+        if (!workspace->videoArea) {
+            workspace->createVideoArea();
+        } else {
+            workspace->videoArea->videoRatio = videoRatio;
+            workspace->videoArea->realRect = QRect(0, 0, 0, 0);
         }
-        workspace->saveConfig(videoPath);
-    }
-};
 
-//Main
+        workspace->updateLayout();
+        workspace->videoArea->update();
+    }
+}
+
+void MainWindow::saveConfig() {
+    if (videoPath.isEmpty() || !workspace->videoArea) {
+        qDebug() << "No video loaded to save.";
+        return;
+    }
+    workspace->saveConfig(videoPath);
+}
+
+// Main setup
 int setup(int argc, char* argv[]) {
     QApplication app(argc, argv);
     MainWindow window;

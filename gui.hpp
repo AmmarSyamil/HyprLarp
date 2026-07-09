@@ -1,10 +1,9 @@
 #pragma once
-// VideoLayoutTool.hpp
-
 #ifndef VIDEOLAYOUTTOOL_HPP
 #define VIDEOLAYOUTTOOL_HPP
 
 #include <QWidget>
+#include <QMainWindow>
 #include <QLabel>
 #include <QPushButton>
 #include <QRect>
@@ -12,6 +11,7 @@
 #include <QSize>
 #include <QString>
 #include <QVector>
+#include <QColor>
 
 // Forward declarations
 class WorkspaceArea;
@@ -24,7 +24,7 @@ QString getConfigPath();
 
 class VideoArea : public QWidget
 {
-    Q_OBJECT   // optional, kept for future signal/slot usage
+    Q_OBJECT
 
 public:
     VideoArea(QSize monitorRatio, QSize videoRatio, QWidget* parent = nullptr);
@@ -114,7 +114,6 @@ public:
     QPushButton* resetBtn;
 };
 
-#endif // VIDEOLAYOUTTOOL_HPP
-
-
 int setup(int argc, char* argv[]);
+
+#endif // VIDEOLAYOUTTOOL_HPP

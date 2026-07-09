@@ -61,11 +61,11 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame)
 
 // Function to return the row stride size of a give width
 // This function have duplicated part in various location, notably in shm.cpp and videoDecoder.hpp, but this is the most appropriate place to put it
-size_t rowStrideSize(uint32_t width) {
-    return (width * 4 + 63) & ~63ULL;
-};
+// size_t rowStrideSize(uint32_t width) {
+//     return (width * 4 + 63) & ~63ULL;
+// };
 
 // Function to extract video's native height, width, and frame rate.
-int extractVideoInfo(AVCodecContext* codec_ctx) {
+// int extractVideoInfo(AVCodecContext* codec_ctx) {
     
-}
+// }
