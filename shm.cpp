@@ -156,7 +156,7 @@ uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool c
         size_t frame_size = stride * height;
         size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
 
-        shm_size = header_size + frame_size * 8; // 8 slots
+        shm_size = header_size + frame_size * RING_BUFFER_SLOTS;
     } else {
         // size_t stride = (width * 4 + 63) & ~63ULL;
         shm_size = stride * height;
@@ -186,7 +186,7 @@ uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool c
         header->width = width;
         header->height = height;
         header->stride = stride; // Assuming RGBA format
-        header->num_sloth = 8; // Total size of the ring buffer
+        header->num_sloth = RING_BUFFER_SLOTS;
         // header->image_size = data_length;
         
         header->initialized.store(true, std::memory_order_release);

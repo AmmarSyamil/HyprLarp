@@ -92,6 +92,7 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
 
     // Single write syscall
     write(STDOUT_FILENO, buf, n);
+    fflush(stdout);
     return 1;
 }
 

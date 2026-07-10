@@ -22,7 +22,7 @@ class consumer
 {
 private:
     std::string BaseSHMName;
-    std::string B64SHMName;
+    std::string pendingKittyUnlink;
     LayoutRender layoutRender;
     ViewportState viewPort;
 
@@ -158,38 +158,68 @@ public:
 
     // use this instead
     int renderFrame() {
-        // Debug
-        // static int call_count = 0;
-        // fprintf(stderr, "renderFrame called %d times\n", ++call_count);
-
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
-        
-        uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
-        if (seq == last_sequence) return 0; // No new frame
-        
-        uint32_t slot = header->write_slot_index.load(std::memory_order_acquire);
-        if (header->global_sequences.load(std::memory_order_acquire) != seq) return 0;
-        if (slot >= header->num_sloth) return 0;
+        if (!header) return 0;
 
-        int fd = shm_open(("/" + BaseSHMName).c_str(), O_CREAT | O_RDWR, 0600);
-        if (fd == -1) return -1;
+        const uint32_t num_slots = header->num_sloth;
+        if (num_slots == 0) return 0;
+
+        uint64_t global_seq = header->global_sequences.load(std::memory_order_acquire);
+        if (global_seq == 0) return 0;
+
+        uint64_t target_seq;
+        if (last_sequence == static_cast<uint64_t>(-1)) {
+            // On startup, join the live edge instead of replaying buffered history.
+            target_seq = global_seq;
+        } else {
+            target_seq = last_sequence + 1;
+        }
+
+        if (global_seq < target_seq) return 0;
+
+        // If we fell behind, the oldest frame still in the ring is global - (num_slots - 1).
+        if (global_seq >= target_seq + num_slots) {
+            target_seq = global_seq - num_slots + 1;
+        }
+
+        const uint32_t slot = static_cast<uint32_t>(target_seq % num_slots);
+        const uint64_t expected_slot_seq = target_seq * 2 + 1;
+        const uint64_t slot_seq = header->slotMetadata[slot].sequence.load(std::memory_order_acquire);
+
+        if (slot_seq % 2 == 0) return 0; // Producer is still writing this slot
+        if (slot_seq < expected_slot_seq) return 0; // Slot not published yet
+        if (slot_seq > expected_slot_seq) {
+            // This frame was overwritten in the ring buffer; skip it and try the next one.
+            last_sequence = target_seq;
+            return 0;
+        }
+
+        const std::string frameSHMName = BaseSHMName + "_" + std::to_string(target_seq);
+        const std::string frameB64Name = base64Converter(frameSHMName);
+
+        int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
+        if (fd == -1) return 0;
         ftruncate(fd, image_size);
-        
+
         uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         close(fd);
-        if (consSHM == MAP_FAILED) return -1;
+        if (consSHM == MAP_FAILED) return 0;
 
         if (readFrameFromSlot(ProducerSHMPtr, slot, consSHM) == -1) {
             munmap(consSHM, image_size);
-            return -1;
+            shm_unlink(("/" + frameSHMName).c_str());
+            return 0;
         }
 
-        // fprintf(stderr, "Calling escSequence with isRender=%d\n", viewPort.isRender);
-        escSequence(width, height, B64SHMName, layoutRender, viewPort);
+        escSequence(width, height, frameB64Name, layoutRender, viewPort);
 
         munmap(consSHM, image_size);
-        last_sequence = seq;
-        
+        if (!pendingKittyUnlink.empty()) {
+            shm_unlink(("/" + pendingKittyUnlink).c_str());
+        }
+        pendingKittyUnlink = frameSHMName;
+        last_sequence = target_seq;
+
         return 1;
     }
 
@@ -249,9 +279,14 @@ public:
 
     ~consumer() {
         if (ProducerSHMPtr) {
-            size_t total_mapped_size = static_cast<size_t>(videoHeaderSize) + static_cast<size_t>(image_size) * 8;
+            size_t total_mapped_size = static_cast<size_t>(videoHeaderSize) + static_cast<size_t>(image_size) * RING_BUFFER_SLOTS;
             exitSHM(ProducerSHMPtr, total_mapped_size);
             ProducerSHMPtr = nullptr;
+        }
+
+        if (!pendingKittyUnlink.empty()) {
+            shm_unlink(("/" + pendingKittyUnlink).c_str());
+            pendingKittyUnlink.clear();
         }
 
         if (shmPtr) {
@@ -318,7 +353,6 @@ public:
 
 
         BaseSHMName = "HyprLarp_" + std::to_string(getpid());
-        B64SHMName = base64Converter(BaseSHMName);
 
         return fetchLayout();
     }

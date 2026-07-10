@@ -61,7 +61,7 @@ private:
             size_t stride = (codec_ctx->width * 4 + 63) & ~63ULL;
             size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
             size_t image_size = stride * codec_ctx->height;
-            size_t total_mapping_size = header_size + image_size * 8;
+            size_t total_mapping_size = header_size + image_size * RING_BUFFER_SLOTS;
             exitSHM(shm, total_mapping_size);
             shm = nullptr;
         }
@@ -110,7 +110,7 @@ public:
         }
         
         // Put data inside the SHM
-        int slot = frame_counter % 8;
+        int slot = frame_counter % RING_BUFFER_SLOTS;
         writeFrameToSlot(shm, slot, dstData[0], frame_counter);
 
         // Cleanup

@@ -41,6 +41,8 @@ int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
     }
 
     std::cerr << "[PRODUCER] Decoded " << frame_count << " frames total, rewinding..." << std::endl;
+    // Give consumers time to read the last frames before the producer loops.
+    // std::this_thread::sleep_for(std::chrono::milliseconds(150));
     return 0;
 }
 

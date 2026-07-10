@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 
+inline constexpr uint32_t RING_BUFFER_SLOTS = 16;
+
 struct alignas(64) frameSlot {
     std::atomic<uint64_t> sequence;
     std::atomic<uint32_t> reader_count;
@@ -21,7 +23,7 @@ struct alignas(64) controlHeader {
     std::atomic<uint32_t> write_slot_index;
     std::atomic<bool> initialized = false;
     uint32_t _pad[2];
-    frameSlot slotMetadata[8];
+    frameSlot slotMetadata[RING_BUFFER_SLOTS];
 };
 
 uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool create_header = true);

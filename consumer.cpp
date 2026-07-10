@@ -37,7 +37,10 @@ int mainConsumer() {
 
     while (true) {
         int result = cons.renderFrame();
-        if (result == 0) {
+        if (result == 1) {
+            // Let Kitty finish reading the previous transmission SHM.
+            std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        } else if (result == 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
