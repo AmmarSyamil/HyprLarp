@@ -44,6 +44,7 @@ private:
     int numberFrame = 0;
     int video_stream_idx = -1;
     int frame_counter = 0;
+    bool flushing = false;
     SwsContext* sws_ctx = nullptr;  // Reuse SWS context for all frames
 
     uint8_t* shm = nullptr;
@@ -174,8 +175,6 @@ public:
     // Pulls the next available frame out of the pipeline
     bool read_next_frame(VideoFrameData* out_data) {
         if (!format_ctx || !codec_ctx || !out_data) return false;
-        
-        static bool flushing = false;
 
         while (true) {
             int response = 0;
@@ -198,14 +197,10 @@ public:
             response = avcodec_receive_frame(codec_ctx, frame);
             
             if (response == AVERROR_EOF) {
-                flushing = false;  // Reset for next video loop
+                flushing = false;
                 return false;  // No more frames
             } else if (response == AVERROR(EAGAIN)) {
-                if (flushing) {
-                    flushing = false;
-                    return false;  // Flush complete, no more frames
-                }
-                continue;  // Need more packets
+                continue;
             } else if (response < 0) {
                 return false;  // Error decoding
             }
@@ -269,7 +264,7 @@ public:
             return false;
         }
 
-        frame_counter = 0;
+        flushing = false;
         return true;
     }
 };

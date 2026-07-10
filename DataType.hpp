@@ -85,31 +85,32 @@ private:
 
     LayoutRender layoutRender;
 
-    videoData videoData;
-
+    
     ViewportState viewPort;
-
+    
     //Window pos in [at, size]
     WindowPos windowPos;
-
+    
     // Window pos in cartesian point 4 of em.
     // maybe deprecated later
     WindowPosCartesian windowPosCartesian;
-
+    
     // Internal terminal geometry dimention
     InternalTerminalGeometry internalTerminalGeometry;
-
+    
     // Internal window Pos
     InternalWindowPos internalWindowPos;
-
+    
     std::string windowID;
-
+    
     // window type {1: main, 0 : sub}
     int windowType;
-
+    
     pid_t pid = 0;
-
-public:
+    
+    public:
+    videoData videoData;
+    
     // Helper function
     const LayoutRender& getLayoutRender() const { return layoutRender; }
     const ViewportState& getViewport() const { return viewPort; }
@@ -143,11 +144,11 @@ private:
     nlohmann::json data;
 
     // Vector containing all data of the window properties
-    std::vector<WindowData> windowData;
     
     //fetch from initial
     int WorkspaceID;
-
+    
+    std::vector<WindowData> windowData;
     videoPos videoPos;
 
 

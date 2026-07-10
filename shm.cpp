@@ -232,7 +232,7 @@ std::vector<int> getImageSHM() {
     }
     
     size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
-    std::cerr << "getImageSHM: /Hyprlarp-Producer size = " << dataStat.st_size << " bytes, controlHeader size = " << header_size << std::endl;
+    // std::cerr << "getImageSHM: /Hyprlarp-Producer size = " << dataStat.st_size << " bytes, controlHeader size = " << header_size << std::endl;
     
     if (dataStat.st_size < static_cast<off_t>(header_size)) {
         std::cerr << "getImageSHM: Shared memory is not initialized or too small" << std::endl;
@@ -254,14 +254,15 @@ std::vector<int> getImageSHM() {
     int image_size = data_ptr->stride * data_ptr->height;
     int videoHeaderSize = header_size;
     
-    std::cerr << "getImageSHM: Raw header bytes (first 12): ";
-    uint8_t* raw = static_cast<uint8_t*>(headerPtr);
-    for (int i = 0; i < 12 && i < static_cast<int>(header_size); i++) {
-        fprintf(stderr, "%02x ", raw[i]);
-    }
-    fprintf(stderr, "\n");
+    // std::cerr << "getImageSHM: Raw header bytes (first 12): ";
+    // uint8_t* raw = static_cast<uint8_t*>(headerPtr);
+    // for (int i = 0; i < 12 && i < static_cast<int>(header_size); i++) {
+    //     // fprintf(stderr, "%02x ", raw[i]);
+    // }
+
+    // fprintf(stderr, "\n");
     
-    std::cerr << "getImageSHM: width=" << width << ", height=" << height << ", image_size=" << image_size << std::endl;
+    // std::cerr << "getImageSHM: width=" << width << ", height=" << height << ", image_size=" << image_size << std::endl;
 
     munmap(headerPtr, header_size);
     return {width, height, image_size, videoHeaderSize};

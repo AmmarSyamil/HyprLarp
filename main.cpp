@@ -118,9 +118,16 @@ int main(int argc, char* argv[]) {
         }
     
         // Run the program
-        if (!std::filesystem::exists("~/.config/HyprLarp.json")) {
-            std::cerr << "Failed to find config file, makesure ~/.config/HyprLarp.json exist by running Hyprlarp --gui" << std::endl;
-    
+        const char* homeDir = std::getenv("HOME");
+        if (!homeDir) {
+            std::cerr << "HOME environment variable not set" << std::endl;
+            return -1;
+        }
+
+        std::filesystem::path configPath = std::filesystem::path(homeDir) / ".config/HyprLarp.json";
+        if (!std::filesystem::exists(configPath)) {
+            std::cerr << "Failed to find config file, make sure " << configPath
+                    << " exists by running Hyprlarp --gui" << std::endl;
             return -1;
         }
     

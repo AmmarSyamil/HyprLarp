@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -23,13 +24,32 @@ extern "C" {
     #include <libavformat/avformat.h>
 }
 
+std::string readVideoPath() {
+    const char* homeDir = std::getenv("HOME");
+    std::string configPath = homeDir ? std::string(homeDir) + "/.config/HyprLarp.json" : "HyprLarp.json";
+    simdjson::dom::parser parser;
+    auto doc = parser.load(configPath);
+    auto path = doc["videoPath"];
+    if (path.error()) {
+        throw std::runtime_error("videoPath not found in config");
+    }
+    return std::string(path.value().get_string().value());
+}
+
 // Function to get videometadata
 int WindowData::GetVideoData() {
+    
+
     const char* filename = this->videoData.videoPath.c_str();
     AVFormatContext* format_ctx = nullptr;
+    
 
     if (avformat_open_input(&format_ctx, filename, nullptr, nullptr) != 0) {
         std::cerr << "Could not open file\n";
+        std::cout << filename << std::endl;
+
+        throw std::runtime_error("avformat_open_input : Could not open file");
+
         return -1;
     }
 
@@ -101,17 +121,13 @@ WorkspaceData::WorkspaceData() {
     // Change implementation to find main window
     WorkspaceData::setWorkspaceIDStartup();
 
-    if (!configFileExists("~/.config/HyprLarp.json")) {
-        std::cerr << "Workspace constructor : config file doent exist yet, please creat one first" << std::endl;
-    };
-
     // Inttitiae the pos video
     this->videoPos = jsonParser();
 
     // Put main terminal window ID into windowData type in the array
-//     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
-    WorkspaceData::InsertWindowData(this->mainTerminalWindowID, 1);
+    //     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
 
+    WorkspaceData::InsertWindowData(this->mainTerminalWindowID, 1);
 
 }
 
@@ -122,14 +138,22 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // Put requirement data into the object
     this->windowID = windowID;
     this->windowType = windowType;
+    this->videoData.videoPath = readVideoPath();
 
     // Find position of the window
     this->windowPos = GetWindowPos(data);
     
-    if (data.contains("pid")) {
-        pid = data["pid"];
+    pid = 0;  // default
+    if (data.is_array()) {
+        for (const auto& client : data) {
+            if (client.contains("address") && client["address"].get<std::string>() == this->windowID) {
+                if (client.contains("pid")) {
+                    pid = client["pid"].get<pid_t>();
+                    break;
+                }
+            }
+        }
     }
-    
 
     // Get internal data
     this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
@@ -238,9 +262,20 @@ int WorkspaceData::FindWorkspaceID(std::string& windowID) {
 // Function to insert a windowData to the workspaceData from window ID and window Type
 // window type {1: main, 0 : sub}
 int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
+
+    // PID is find in the windowdata constructor
+    // pid_t windowPid = 0;
+    // for (const auto& client : this->data) {   // assuming data is an array
+    //     if (client.contains("address") && client["address"].get<std::string>() == windowID) {
+    //         if (client.contains("pid"))
+    //             windowPid = client["pid"].get<pid_t>();
+    //         break;
+    //     }
+    // }
     this->windowData.emplace_back(WindowData(windowType, windowID, this->data, this->videoPos));
-    // this->windowData.emplace_back(WindowData(1));
-//     std::cout << "test" << std::endl;
+    
+    this->windowData.back().videoData.videoPath = this->videoPath; 
+
     return 1;
 }
 
@@ -251,11 +286,10 @@ int WorkspaceData::FetchWindowID() {
 
     for (const auto& jsonData: GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
         if (IsPIDTerminal(jsonData["pid"]) == 1 and !currentWindow.count(jsonData["address"])) {
-            // I think i need to change the normal json data into the window data format.
             this->windowData.emplace_back(0, jsonData["address"], this->data, this->videoPos);
+        this->windowData.back().videoData.videoPath = this->videoPath; // ← add
         }
     }
-
     return 1;
 };
 

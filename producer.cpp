@@ -49,16 +49,6 @@ std::string jsonParser() {
     return std::string(path.value().get_string().value());
 }
 
-int setupWorkspaceData() {
-    // Setup workspace class
-    WorkspaceData workspaceData;
-
-    // Get windowData
-    workspaceData.FetchWindowID();
-
-    return 0;
-};
-
 static void handle_signal(int) {
     shm_unlink("/HyprLarp-Producer");
     _exit(1);
@@ -70,7 +60,7 @@ void publishLayout(WorkspaceData& ws) {
     static int fd = -1;
 
     if (!hdr) {
-        fd = shm_open("/Hyprlarp_layout", O_CREAT | O_RDWR, 0600);
+        fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
         if (fd == -1) {
             perror("publishLayout: shm_open");
             return;
@@ -129,6 +119,18 @@ void publishLayout(WorkspaceData& ws) {
     hdr->count.store(i, std::memory_order_release);
     hdr->version.fetch_add(1, std::memory_order_release);
 }
+
+int setupWorkspaceData() {
+    // Setup workspace class
+    WorkspaceData workspaceData;
+
+    // Get windowData
+    workspaceData.FetchWindowID();
+
+    publishLayout(workspaceData);
+
+    return 0;
+};
 
 // Main enries to producer
 int mainProducer() {

@@ -11,7 +11,7 @@ extern "C" {
 }
 
 
-// Function to idk
+// full decoder 
 int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
     auto start_time = std::chrono::high_resolution_clock::now();
     auto last_frame_time = start_time;

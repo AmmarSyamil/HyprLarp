@@ -16,6 +16,7 @@ extern "C" {
 }
 #include "base64converter.hpp"
 #include "layoutSHM.hpp"
+#include "checkTerminal.hpp"
 
 class consumer
 {
@@ -157,6 +158,10 @@ public:
 
     // use this instead
     int renderFrame() {
+        // Debug
+        // static int call_count = 0;
+        // fprintf(stderr, "renderFrame called %d times\n", ++call_count);
+
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
         
         uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
@@ -179,10 +184,12 @@ public:
             return -1;
         }
 
+        // fprintf(stderr, "Calling escSequence with isRender=%d\n", viewPort.isRender);
         escSequence(width, height, B64SHMName, layoutRender, viewPort);
 
         munmap(consSHM, image_size);
         last_sequence = seq;
+        
         return 1;
     }
 
@@ -255,15 +262,19 @@ public:
     }
 
     bool fetchLayout() {
+        std::cerr << "fetchLayout: opening /HyprLarp_layout\n";
         int fd = shm_open("/HyprLarp_layout", O_RDONLY, 0);
-        if (fd == -1) return false;
+        if (fd == -1) {
+            perror("fetchLayout shm_open");
+            return false;
+        }
 
         LayoutHeader* hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader), PROT_READ, MAP_SHARED, fd, 0);
         
         close(fd);
         if (!hdr) return false;
 
-        pid_t myPid = getpid();
+        pid_t myPid = FindTerminalPID();
         uint32_t n = hdr->count.load(std::memory_order_acquire);
         for (uint32_t i = 0; i < n && i < MAX_WINDOWS; ++i) {
             auto& e = hdr->entries[i];
@@ -283,6 +294,7 @@ public:
 
                 // Copy viewport
                 viewPort.isRender = e.isRender;
+                // viewPort.isRender = 1; // test
                 viewPort.overlap_x = e.overlap_x;
                 viewPort.overlap_y = e.overlap_y;
                 viewPort.overlap_w = e.overlap_w;
@@ -293,6 +305,7 @@ public:
             }
         }
         munmap(hdr, sizeof(LayoutHeader));
+        std::cerr << "fetchLayout: no matching entry found\n";
         return false;
         
     }

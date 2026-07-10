@@ -7,6 +7,7 @@
 #include "base64converter.hpp"
 #include <filesystem>
 #include "DataType.hpp"
+#include <cstdio>
 
 // Function to display to write the escape sequences
 int escSequence(int width, int height, std::string& imageSHM, const LayoutRender layoutRender, ViewportState vp) {
@@ -72,10 +73,11 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
     return 1;
 }
 
-
 // Version 2
 int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
     if (!vp.isRender) return 0; 
+
+    // fprintf(stderr, "Sending escape seq\n");
 
     char buf[512];
     int n = snprintf(buf, sizeof(buf),

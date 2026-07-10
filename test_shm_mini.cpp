@@ -56,7 +56,7 @@ int main() {
                          ",v=" + std::to_string(height) +
                          ",t=s,O=0,S=" + std::to_string(pixel_data_size) +
                          ";" + b64_name + "\x1b\\";
-    write(STDOUT_FILENO, escape.c_str(), escape.size());
+    // write(STDOUT_FILENO, escape.c_str(), escape.size());
 
     // Wait for Kitty to read (optional)
     usleep(100000);

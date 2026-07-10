@@ -29,33 +29,18 @@ int mainConsumer() {
 
     // wait producer and layout to be ready 
     while (!cons.init()) {
+        static int wait_count = 0;
+        if (++wait_count % 20 == 0)   // print every ~1 second
+            std::cerr << "Waiting for producer and layout...\n";
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     while (true) {
-        if (cons.renderFrame() != 1) {
-            // Optional: check if layout changed, re‑fetch, etc.
+        int result = cons.renderFrame();
+        if (result == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
-
-    // while (true) {
-    //     cons.setupSHM();
-
-    //     if (cons.populateSHM() == -1) {
-    //         // std::cerr << "consumer: failed to populate SHM" << std::endl;
-    //         throw std::runtime_error("Cannot divide by zero!");
-    //         break;
-    //     }
-
-    //     if (cons.displayImage() == -1) {
-    //         // std::cerr << "consumer: failed to display image" << std::endl;
-    //         throw std::runtime_error("Cannot divide by zero!");
-    //         break;
-    //     }
-
-    //     cons.frame++;
-    //     cons.setupSHMfileName(cons.frame);
-    // }
 
     // Show cursor again
     std::cout << "\033[?25h" << std::flush;
