@@ -45,6 +45,7 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
         "a=T"                     // Action: Transmit and display
         ",f=32"                   // Format: 32-bit RGBA
         ",t=s"                    // Transmission: Shared Memory
+        ",d=a"
         ",i=1"                    // Re-use Image ID 1 (prevents GPU memory leaks)
         ",q=2"                    // Quiet mode (mutes terminal confirmations)
         ",s=" + std::to_string(width) +   // Total width of the raw SHM buffer frame
@@ -81,7 +82,7 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
 
     char buf[512];
     int n = snprintf(buf, sizeof(buf),
-        "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
+        "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
         lr.cursor_row, lr.cursor_col, 
         width, height,
         lr.x, lr.y, lr.w, lr.h, 
