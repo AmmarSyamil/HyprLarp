@@ -38,9 +38,11 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
 //         std::cout << connection;
 //         std::cout << '\n';
 //         std::cout << path;
+        close(sock);
         return 1;
     } else  {
 //         std::cout << "Connection succesfull!!";
+
     }
 
     // Setup buffer with size 1024 bytes size (hopefully its enough)
@@ -99,7 +101,7 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
         data.push_back(dataBuffer);
     }
     
-
+    close(sock);
     return 1;
 }
 

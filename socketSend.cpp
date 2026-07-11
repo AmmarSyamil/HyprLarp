@@ -126,7 +126,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     if (connection < 0) {
         std::cerr << "Socket connection failed at connecting for socket sends";
 //         std::cout << connection << '\n' << path << std::endl;
-
+        close(sock);
         return 1;
     } else {
 //         std::cout << "Connection succesfull (socket sends)" << std::endl;
@@ -142,6 +142,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
     if (sendsConnection < 0) {
         std::cerr << "Error at sending data socket";
+        close(sock);
         return 1;
     }
     
@@ -172,7 +173,7 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
     outputData = nlohmann::json::parse(jsonData);
 
-
+    close(sock);
     return 0;
 }
 

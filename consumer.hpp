@@ -369,12 +369,20 @@ public:
 
 
         // debug test
+        // if (getImageData() != 1) return false;
+        // ProducerSHMPtr = openSHM();
+        // if (!ProducerSHMPtr) return false;
+        // terminalPid = FindTerminalPID();
+        // return refreshLayout();   // initial layout
         if (getImageData() != 1) return false;
         ProducerSHMPtr = openSHM();
         if (!ProducerSHMPtr) return false;
+
+        BaseSHMName = "HyprLarp_" + std::to_string(getpid());
+
         terminalPid = FindTerminalPID();
-        return refreshLayout();   // initial layout
-        
+        return refreshLayout();   // or fetchLayout()
+            
     }
 };
 
