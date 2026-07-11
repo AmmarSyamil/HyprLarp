@@ -19,9 +19,39 @@
 #include <string_view>
 #include <cstdlib>
 #include "terminalLayout.hpp"
+#include <unordered_map>
 
 extern "C" {
     #include <libavformat/avformat.h>
+}
+
+static WindowPos windowPosFromClient(const nlohmann::json& client) {
+    return {
+        client["at"].get<std::vector<int>>(),
+        client["size"].get<std::vector<int>>()
+    };
+}
+
+// Prefer the last matching client entry; Hyprland can briefly emit duplicates
+// during tiling animations and the later entry is usually the settled one.
+static bool lookupClientGeometry(const nlohmann::json& data, const std::string& windowID,
+                                 WindowPos& pos, pid_t& pid) {
+    bool found = false;
+
+    for (const auto& client : data) {
+        if (!client.contains("address")) {
+            continue;
+        }
+        if (client["address"].get<std::string>() != windowID) {
+            continue;
+        }
+
+        pos = windowPosFromClient(client);
+        pid = client.contains("pid") ? client["pid"].get<pid_t>() : 0;
+        found = true;
+    }
+
+    return found;
 }
 
 std::string readVideoPath() {
@@ -196,7 +226,6 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
 
 }
 
-// debug test constructor
 WindowData::WindowData(int windowType, std::string windowID, const WindowPos& pos, pid_t pid, videoPos vpos)
 {
     this->windowID = windowID;
@@ -303,19 +332,16 @@ int WorkspaceData::FindWorkspaceID(std::string& windowID) {
 // Function to insert a windowData to the workspaceData from window ID and window Type
 // window type {1: main, 0 : sub}
 int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
+    WindowPos pos;
+    pid_t windowPid = 0;
 
-    // PID is find in the windowdata constructor
-    // pid_t windowPid = 0;
-    // for (const auto& client : this->data) {   // assuming data is an array
-    //     if (client.contains("address") && client["address"].get<std::string>() == windowID) {
-    //         if (client.contains("pid"))
-    //             windowPid = client["pid"].get<pid_t>();
-    //         break;
-    //     }
-    // }
-    this->windowData.emplace_back(WindowData(windowType, windowID, this->data, this->videoPos));
-    
-    this->windowData.back().videoData.videoPath = this->videoPath; 
+    if (!lookupClientGeometry(this->data, windowID, pos, windowPid)) {
+        std::cerr << "InsertWindowData: no client entry for " << windowID << std::endl;
+        return 0;
+    }
+
+    this->windowData.emplace_back(windowType, windowID, pos, windowPid, this->videoPos);
+    this->windowData.back().videoData.videoPath = this->videoPath;
 
     return 1;
 }
@@ -323,18 +349,27 @@ int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
 // Fetch all terminal windowID that have workspaceID
 // Output of vector from windowID
 int WorkspaceData::FetchWindowID() {
+    GetWindowsPropertiesData(this->data);
+
     std::unordered_set<std::string> currentWindow = WorkspaceData::currentWindowData();
 
+    // Deduplicate by address; keep the last workspace entry for each window.
+    std::unordered_map<std::string, nlohmann::json> workspaceClients;
     for (const auto& jsonData : GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
-        if (IsPIDTerminal(jsonData["pid"]) && !currentWindow.count(jsonData["address"])) {
-            WindowPos pos;
-            pos.at = { jsonData["at"][0].get<int>(), jsonData["at"][1].get<int>() };
-            pos.size = { jsonData["size"][0].get<int>(), jsonData["size"][1].get<int>() };
-            pid_t pid = jsonData["pid"].get<pid_t>();
-            std::string address = jsonData["address"].get<std::string>();
-
-            this->windowData.emplace_back(0, address, pos, pid, this->videoPos);
+        if (!IsPIDTerminal(jsonData["pid"])) {
+            continue;
         }
+        workspaceClients[jsonData["address"].get<std::string>()] = jsonData;
+    }
+
+    for (const auto& [address, jsonData] : workspaceClients) {
+        if (currentWindow.count(address)) {
+            continue;
+        }
+
+        WindowPos pos = windowPosFromClient(jsonData);
+        pid_t pid = jsonData["pid"].get<pid_t>();
+        this->windowData.emplace_back(0, address, pos, pid, this->videoPos);
     }
     return 1;
 };

@@ -17,6 +17,7 @@ extern "C" {
 #include "base64converter.hpp"
 #include "layoutSHM.hpp"
 #include "checkTerminal.hpp"
+#include "consumerLayout.hpp"
 #include <sys/ioctl.h>
 #include <fstream>
 
@@ -47,6 +48,7 @@ private:
     std::chrono::high_resolution_clock::time_point frame_start_time;
     std::chrono::high_resolution_clock::time_point last_frame_time;
     std::vector<uint8_t> frame_data_cache;  // Pre-allocated frame buffer
+    bool layoutReady = false;
 
 
 public:
@@ -303,86 +305,42 @@ public:
     }
 
     bool fetchLayout() {
-        // std::cerr << "fetchLayout: opening /HyprLarp_layout\n";
-        int fd = shm_open("/HyprLarp_layout", O_RDONLY, 0);
-        if (fd == -1) {
-            perror("fetchLayout shm_open");
+        if (width <= 0 || height <= 0) {
             return false;
         }
 
-        LayoutHeader* hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader), PROT_READ, MAP_SHARED, fd, 0);
-        
-        close(fd);
-        if (!hdr) return false;
+        static auto lastUpdate = std::chrono::steady_clock::time_point::min();
+        auto now = std::chrono::steady_clock::now();
+        if (layoutReady && lastUpdate != std::chrono::steady_clock::time_point::min()
+            && now - lastUpdate < std::chrono::milliseconds(200)) {
+            return true;
+        }
 
         pid_t myPid = FindTerminalPID();
-        uint32_t n = hdr->count.load(std::memory_order_acquire);
-        for (uint32_t i = 0; i < n && i < MAX_WINDOWS; ++i) {
-            auto& e = hdr->entries[i];
-            if (!e.valid) continue;
-            if (e.pid == myPid) {
-                // Copy layout
-                layoutRender.x = e.x;
-                layoutRender.y = e.y;
-                layoutRender.w = e.w;
-                layoutRender.h = e.h;
-                layoutRender.cursor_col = e.cursor_col;
-                layoutRender.cursor_row = e.cursor_row;
-                layoutRender.disp_cols = e.disp_cols;
-                layoutRender.disp_rows = e.disp_rows;
-                layoutRender.sub_offset_x = e.sub_offset_x;
-                layoutRender.sub_offset_y = e.sub_offset_y;
-
-                // Copy viewport
-                viewPort.isRender = e.isRender;
-                viewPort.overlap_x = e.overlap_x;
-                viewPort.overlap_y = e.overlap_y;
-                viewPort.overlap_w = e.overlap_w;
-                viewPort.overlap_h = e.overlap_h;
-
-                // Debug
-                // fopen("/tmp/layout.log", "a");
-                // std::cerr << "fetchLayout: x=" << layoutRender.x << " y=" << layoutRender.y
-                // << " w=" << layoutRender.w << " h=" << layoutRender.h
-                // << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
-                // << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
-                // << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y << std::endl;
-
-                // std::cerr << "Matched entry: address=" << e.windowAddress
-                // << " pid=" << e.pid << " cols=" << e.disp_cols
-                // << " rows=" << e.disp_rows << " x=" << e.x << " y=" << e.y
-                // << " w=" << e.w << " h=" << e.h << std::endl;
-
-                std::ofstream logFile("/tmp/layout.log", std::ios_base::app);
-                if (logFile.is_open()) {
-                    logFile << "fetchLayout: x=" << layoutRender.x << " y=" << layoutRender.y
-                            << " w=" << layoutRender.w << " h=" << layoutRender.h
-                            << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
-                            << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
-                            << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y << std::endl;
-
-                    logFile << "Matched entry: address=" << e.windowAddress
-                            << " pid=" << e.pid << " cols=" << e.disp_cols
-                            << " rows=" << e.disp_rows << " x=" << e.x << " y=" << e.y
-                            << " w=" << e.w << " h=" << e.h << std::endl;
-
-                    // The file automatically closes when 'logFile' goes out of scope, 
-                    // but you can explicitly close it if needed:
-                    logFile.close();
-                } else {
-                    // Fallback to cerr if the file couldn't be opened (e.g., permissions issue)
-                    std::cerr << "Error: Could not open /tmp/layout.log for writing." << std::endl;
-                }
-
-
-                munmap(hdr, sizeof(LayoutHeader));
-                return true;
-            }
+        if (myPid <= 0) {
+            std::cerr << "fetchLayout: could not find terminal PID\n";
+            return false;
         }
-        munmap(hdr, sizeof(LayoutHeader));
-        std::cerr << "fetchLayout: no matching entry found\n";
-        return false;
-        
+
+        if (!computeConsumerLayout(myPid, width, height, layoutRender, viewPort)) {
+            return false;
+        }
+
+        layoutReady = true;
+        lastUpdate = now;
+
+        std::ofstream logFile("/tmp/layout.log", std::ios_base::app);
+        if (logFile.is_open()) {
+            logFile << "fetchLayout(local): x=" << layoutRender.x << " y=" << layoutRender.y
+                    << " w=" << layoutRender.w << " h=" << layoutRender.h
+                    << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
+                    << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
+                    << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y
+                    << " pid=" << myPid << std::endl;
+            logFile.close();
+        }
+
+        return true;
     }
 
     // Function to setup the class
