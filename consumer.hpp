@@ -17,6 +17,9 @@ extern "C" {
 #include "base64converter.hpp"
 #include "layoutSHM.hpp"
 #include "checkTerminal.hpp"
+#include <sys/ioctl.h>
+#include <fstream>
+
 
 class consumer
 {
@@ -158,6 +161,9 @@ public:
 
     // use this instead
     int renderFrame() {
+        // debug test
+        fetchLayout();
+
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
         if (!header) return 0;
 
@@ -297,7 +303,7 @@ public:
     }
 
     bool fetchLayout() {
-        std::cerr << "fetchLayout: opening /HyprLarp_layout\n";
+        // std::cerr << "fetchLayout: opening /HyprLarp_layout\n";
         int fd = shm_open("/HyprLarp_layout", O_RDONLY, 0);
         if (fd == -1) {
             perror("fetchLayout shm_open");
@@ -329,11 +335,45 @@ public:
 
                 // Copy viewport
                 viewPort.isRender = e.isRender;
-                // viewPort.isRender = 1; // test
                 viewPort.overlap_x = e.overlap_x;
                 viewPort.overlap_y = e.overlap_y;
                 viewPort.overlap_w = e.overlap_w;
                 viewPort.overlap_h = e.overlap_h;
+
+                // Debug
+                // fopen("/tmp/layout.log", "a");
+                // std::cerr << "fetchLayout: x=" << layoutRender.x << " y=" << layoutRender.y
+                // << " w=" << layoutRender.w << " h=" << layoutRender.h
+                // << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
+                // << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
+                // << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y << std::endl;
+
+                // std::cerr << "Matched entry: address=" << e.windowAddress
+                // << " pid=" << e.pid << " cols=" << e.disp_cols
+                // << " rows=" << e.disp_rows << " x=" << e.x << " y=" << e.y
+                // << " w=" << e.w << " h=" << e.h << std::endl;
+
+                std::ofstream logFile("/tmp/layout.log", std::ios_base::app);
+                if (logFile.is_open()) {
+                    logFile << "fetchLayout: x=" << layoutRender.x << " y=" << layoutRender.y
+                            << " w=" << layoutRender.w << " h=" << layoutRender.h
+                            << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
+                            << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
+                            << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y << std::endl;
+
+                    logFile << "Matched entry: address=" << e.windowAddress
+                            << " pid=" << e.pid << " cols=" << e.disp_cols
+                            << " rows=" << e.disp_rows << " x=" << e.x << " y=" << e.y
+                            << " w=" << e.w << " h=" << e.h << std::endl;
+
+                    // The file automatically closes when 'logFile' goes out of scope, 
+                    // but you can explicitly close it if needed:
+                    logFile.close();
+                } else {
+                    // Fallback to cerr if the file couldn't be opened (e.g., permissions issue)
+                    std::cerr << "Error: Could not open /tmp/layout.log for writing." << std::endl;
+                }
+
 
                 munmap(hdr, sizeof(LayoutHeader));
                 return true;
@@ -353,6 +393,11 @@ public:
 
 
         BaseSHMName = "HyprLarp_" + std::to_string(getpid());
+
+        // debug test
+        struct winsize ws;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
+        std::cerr << "Terminal size: " << ws.ws_col << "x" << ws.ws_row << std::endl;
 
         return fetchLayout();
     }

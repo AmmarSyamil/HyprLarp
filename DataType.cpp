@@ -140,6 +140,9 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     this->windowType = windowType;
     this->videoData.videoPath = readVideoPath();
 
+
+    // this->windowPos = pos; 
+
     // Find position of the window
     this->windowPos = GetWindowPos(data);
     
@@ -176,12 +179,50 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // Setup viewport
     // GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
 
+    // debug / test
+    std::cerr << "layoutCalculation inputs:"
+          << " v_left=" << pos.video_left << " v_top=" << pos.video_top
+          << " v_right=" << pos.video_right << " v_bottom=" << pos.video_bottom
+          << " term_grid_x=" << internalTerminalGeometry.grid_screen_x
+          << " term_grid_y=" << internalTerminalGeometry.grid_screen_y
+          << " term_w=" << internalTerminalGeometry.w
+          << " term_h=" << internalTerminalGeometry.h
+          << " cell_w=" << internalTerminalGeometry.cell_w
+          << " cell_h=" << internalTerminalGeometry.cell_h
+          << std::endl;
+
     // Setup terminalLayout
     layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+
 }
+
+// debug test constructor
+WindowData::WindowData(int windowType, std::string windowID, const WindowPos& pos, pid_t pid, videoPos vpos)
+{
+    this->windowID = windowID;
+    this->windowType = windowType;
+    this->windowPos = pos;
+    this->pid = pid;
+    this->videoData.videoPath = readVideoPath();
+
+    // The rest is identical to your existing constructor:
+    this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
+    this->internalWindowPos = {
+        this->internalTerminalGeometry.grid_screen_x,
+        this->internalTerminalGeometry.grid_screen_x + this->internalTerminalGeometry.w,
+        this->internalTerminalGeometry.grid_screen_y + this->internalTerminalGeometry.h,
+        this->internalTerminalGeometry.grid_screen_y
+    };
+    GetWindowPosCartesian();
+    GetVideoData();
+    layoutCalculation(vpos.video_left, vpos.video_top, vpos.video_right, vpos.video_bottom,
+                      this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+}
+
 
 // Overload Constructor function
 // why would i do this??
+// deprecated
 WindowData::WindowData(int windowType) {
     // Get window data (see improvement part in todo.txt)
     nlohmann::json data;
@@ -284,10 +325,15 @@ int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
 int WorkspaceData::FetchWindowID() {
     std::unordered_set<std::string> currentWindow = WorkspaceData::currentWindowData();
 
-    for (const auto& jsonData: GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
-        if (IsPIDTerminal(jsonData["pid"]) == 1 and !currentWindow.count(jsonData["address"])) {
-            this->windowData.emplace_back(0, jsonData["address"], this->data, this->videoPos);
-        this->windowData.back().videoData.videoPath = this->videoPath; // ← add
+    for (const auto& jsonData : GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
+        if (IsPIDTerminal(jsonData["pid"]) && !currentWindow.count(jsonData["address"])) {
+            WindowPos pos;
+            pos.at = { jsonData["at"][0].get<int>(), jsonData["at"][1].get<int>() };
+            pos.size = { jsonData["size"][0].get<int>(), jsonData["size"][1].get<int>() };
+            pid_t pid = jsonData["pid"].get<pid_t>();
+            std::string address = jsonData["address"].get<std::string>();
+
+            this->windowData.emplace_back(0, address, pos, pid, this->videoPos);
         }
     }
     return 1;

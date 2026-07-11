@@ -129,6 +129,7 @@ private:
     // Constructor
     WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos);
     WindowData(int windowType);
+    WindowData(int windowType, std::string windowID, const WindowPos& pos, pid_t pid, videoPos vpos); // debug test
 
     friend std::ostream& operator<<(std::ostream& os, const WindowData& wd);
 
