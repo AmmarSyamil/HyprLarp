@@ -1,4 +1,4 @@
-// Renderer.cpp
+// renderer.cpp
 #include <iostream>
 #include <unistd.h>
 #include <string>

@@ -53,7 +53,13 @@ private:
 
 public:
     int frame = 0;
-    
+
+    // test debug
+    pid_t terminalPid = 0;
+    bool refreshLayout() {
+        return computeConsumerLayout(terminalPid, width, height, layoutRender, viewPort);
+    }
+
     // Enable debug mode (shows timing stats instead of video)
     void enableDebugMode() { debug_mode = true; }
     void disableDebugMode() { debug_mode = false; }
@@ -163,8 +169,11 @@ public:
 
     // use this instead
     int renderFrame() {
-        // debug test
-        fetchLayout();
+        // Periodically refresh layout (every 10 frames) debug test
+        static int frameCount = 0;
+        if (++frameCount % 10 == 0) {
+            refreshLayout();
+        }
 
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
         if (!header) return 0;
@@ -177,7 +186,6 @@ public:
 
         uint64_t target_seq;
         if (last_sequence == static_cast<uint64_t>(-1)) {
-            // On startup, join the live edge instead of replaying buffered history.
             target_seq = global_seq;
         } else {
             target_seq = last_sequence + 1;
@@ -185,7 +193,6 @@ public:
 
         if (global_seq < target_seq) return 0;
 
-        // If we fell behind, the oldest frame still in the ring is global - (num_slots - 1).
         if (global_seq >= target_seq + num_slots) {
             target_seq = global_seq - num_slots + 1;
         }
@@ -194,11 +201,10 @@ public:
         const uint64_t expected_slot_seq = target_seq * 2 + 1;
         const uint64_t slot_seq = header->slotMetadata[slot].sequence.load(std::memory_order_acquire);
 
-        if (slot_seq % 2 == 0) return 0; // Producer is still writing this slot
-        if (slot_seq < expected_slot_seq) return 0; // Slot not published yet
+        if (slot_seq % 2 == 0) return 0; // Producer still writing
+        if (slot_seq < expected_slot_seq) return 0;
         if (slot_seq > expected_slot_seq) {
-            // This frame was overwritten in the ring buffer; skip it and try the next one.
-            last_sequence = target_seq;
+            last_sequence = target_seq;   // skip overwritten frame
             return 0;
         }
 
@@ -219,6 +225,7 @@ public:
             return 0;
         }
 
+        // Use the current layout (updated by refreshLayout)
         escSequence(width, height, frameB64Name, layoutRender, viewPort);
 
         munmap(consSHM, image_size);
@@ -230,7 +237,6 @@ public:
 
         return 1;
     }
-
     // Debug mode: display frame timing stats while showing video
     int displayDebugStats() {
         auto now = std::chrono::high_resolution_clock::now();
@@ -239,11 +245,11 @@ public:
                                std::chrono::duration<double>(now - last_frame_time).count();
         
         // Print debug stats to stderr (doesn't interfere with video on stdout)
-        std::cerr << "[CONSUMER] Seq=" << last_sequence 
-                  << " Slot=" << last_slot 
-                  << " Polls=" << poll_retries 
-                  << " ReadTime=" << frame_duration*1000 << "ms"
-                  << " Delta=" << delta_from_last*1000 << "ms" << std::endl;
+        // std::cerr << "[CONSUMER] Seq=" << last_sequence 
+        //           << " Slot=" << last_slot 
+        //           << " Polls=" << poll_retries 
+        //           << " ReadTime=" << frame_duration*1000 << "ms"
+        //           << " Delta=" << delta_from_last*1000 << "ms" << std::endl;
         
         last_frame_time = now;
         return 1;
@@ -305,59 +311,71 @@ public:
     }
 
     bool fetchLayout() {
-        if (width <= 0 || height <= 0) {
-            return false;
-        }
+        // if (width <= 0 || height <= 0) {
+        //     return false;
+        // }
 
-        static auto lastUpdate = std::chrono::steady_clock::time_point::min();
-        auto now = std::chrono::steady_clock::now();
-        if (layoutReady && lastUpdate != std::chrono::steady_clock::time_point::min()
-            && now - lastUpdate < std::chrono::milliseconds(200)) {
-            return true;
-        }
+        // static auto lastUpdate = std::chrono::steady_clock::time_point::min();
+        // auto now = std::chrono::steady_clock::now();
+        // if (layoutReady && lastUpdate != std::chrono::steady_clock::time_point::min()
+        //     && now - lastUpdate < std::chrono::milliseconds(200)) {
+        //     return true;
+        // }
 
-        pid_t myPid = FindTerminalPID();
-        if (myPid <= 0) {
-            std::cerr << "fetchLayout: could not find terminal PID\n";
-            return false;
-        }
+        // pid_t myPid = FindTerminalPID();
+        // if (myPid <= 0) {
+        //     std::cerr << "fetchLayout: could not find terminal PID\n";
+        //     return false;
+        // }
 
-        if (!computeConsumerLayout(myPid, width, height, layoutRender, viewPort)) {
-            return false;
-        }
+        // if (!computeConsumerLayout(myPid, width, height, layoutRender, viewPort)) {
+        //     return false;
+        // }
 
-        layoutReady = true;
-        lastUpdate = now;
+        // layoutReady = true;
+        // lastUpdate = now;
 
-        std::ofstream logFile("/tmp/layout.log", std::ios_base::app);
-        if (logFile.is_open()) {
-            logFile << "fetchLayout(local): x=" << layoutRender.x << " y=" << layoutRender.y
-                    << " w=" << layoutRender.w << " h=" << layoutRender.h
-                    << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
-                    << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
-                    << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y
-                    << " pid=" << myPid << std::endl;
-            logFile.close();
-        }
+        // std::ofstream logFile("/tmp/layout.log", std::ios_base::app);
+        // if (logFile.is_open()) {
+        //     logFile << "fetchLayout(local): x=" << layoutRender.x << " y=" << layoutRender.y
+        //             << " w=" << layoutRender.w << " h=" << layoutRender.h
+        //             << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
+        //             << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
+        //             << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y
+        //             << " pid=" << myPid << std::endl;
+        //     logFile.close();
+        // }
 
-        return true;
+        // return true;
+
+        // debug test
+        return computeConsumerLayout(FindTerminalPID(), width, height, layoutRender, viewPort);
     }
 
     // Function to setup the class
     bool init() {
+        // if (getImageData() != 1) return false;
+        // ProducerSHMPtr = openSHM();
+        // if (!ProducerSHMPtr) return false;
+
+
+        // BaseSHMName = "HyprLarp_" + std::to_string(getpid());
+
+        // // debug test
+        // struct winsize ws;
+        // ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
+        // std::cerr << "Terminal size: " << ws.ws_col << "x" << ws.ws_row << std::endl;
+
+        // return fetchLayout();
+
+
+        // debug test
         if (getImageData() != 1) return false;
         ProducerSHMPtr = openSHM();
         if (!ProducerSHMPtr) return false;
-
-
-        BaseSHMName = "HyprLarp_" + std::to_string(getpid());
-
-        // debug test
-        struct winsize ws;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
-        std::cerr << "Terminal size: " << ws.ws_col << "x" << ws.ws_row << std::endl;
-
-        return fetchLayout();
+        terminalPid = FindTerminalPID();
+        return refreshLayout();   // initial layout
+        
     }
 };
 

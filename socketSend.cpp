@@ -1,4 +1,5 @@
 // This file contain the implementation of sending socket to Hyrpland IPC to find the propeties of the active window.
+// socketSend.cpp
 
 #include <netinet/in.h>
 #include <sys/socket.h>

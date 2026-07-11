@@ -1,4 +1,5 @@
 // This file contain the implementation of converting raw list of [at,pos] data of each window to a layout that can easily be accesed in the form of coordinate cartesius.
+// layoutWindow.cpp
 
 #include <cstring>
 #include <unistd.h>

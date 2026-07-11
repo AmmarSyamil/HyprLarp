@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-
+// base64converter.cpp
 
 static const char table[] ="ABCDEFGHIJKLMNOPQRSTUVWXYZ""abcdefghijklmnopqrstuvwxyz""0123456789+/";
 

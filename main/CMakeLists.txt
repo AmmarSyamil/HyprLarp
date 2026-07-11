@@ -8,12 +8,10 @@ add_executable(hyprlarp
     ../main.cpp
     ../socketSend.cpp
     ../socketReceive.cpp
-    ../dataChecker.cpp
     ../layoutWindow.cpp
     ../tools.cpp
     ../DataType.cpp
     ../checkTerminal.cpp
-    ../videoRendering.cpp
     ../terminal.cpp
     ../terminal.hpp
     ../checkTerminal.cpp
@@ -24,10 +22,9 @@ add_executable(hyprlarp
     ../gui.cpp
     ../consumer.cpp
     ../renderer.cpp
-    ../shm.cpp
     ../base64converter.cpp
-    ../layoutWindow.cpp
     ../terminalLayout.cpp
+    ../consumerLayout.cpp
 )
 
 

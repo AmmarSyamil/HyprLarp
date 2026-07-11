@@ -1,5 +1,5 @@
 //Use to check if the executable was run in terminal or not and what terminal is it
-
+// checkTerminal.cpp
 #include <iostream>
 #include <unistd.h>
 #include <string>
