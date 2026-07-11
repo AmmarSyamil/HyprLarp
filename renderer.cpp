@@ -45,7 +45,7 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
         "a=T"                     // Action: Transmit and display
         ",f=32"                   // Format: 32-bit RGBA
         ",t=s"                    // Transmission: Shared Memory
-        ",d=a"
+        ",d=a"                    // NOT DELETE SHM (WTF I SHOULD HAVE KNOWN THIS EARLIER)
         ",i=1"                    // Re-use Image ID 1 (prevents GPU memory leaks)
         ",q=2"                    // Quiet mode (mutes terminal confirmations)
         ",s=" + std::to_string(width) +   // Total width of the raw SHM buffer frame

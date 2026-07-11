@@ -33,6 +33,7 @@ zamn idk where to start
 27. use std::runtime_error // clean debug // clean error logging
 ( v ). CHange /vp_static into /HyprLarp-Producer
 29. COmbine the layout thingy
+30. add / clean the shm
 
 
 video :

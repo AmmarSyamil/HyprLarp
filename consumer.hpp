@@ -69,7 +69,6 @@ public:
         pid = getpid();
         frame = currectFrame;
         std::string fileNameSHM = "HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
-
         SHMfileName = fileNameSHM;
 //         std::cout << "setupSHMfileName : " << SHMfileName << std::endl;
 

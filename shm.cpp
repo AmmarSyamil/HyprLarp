@@ -180,7 +180,6 @@ uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool c
     
     // For main SHM / producer
     if (create_header) {
-
         // VideoHeader* header = static_cast<VideoHeader*>(genericPtr);
         controlHeader* header = static_cast<controlHeader*>(genericPtr);
         header->width = width;
