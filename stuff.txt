@@ -1,0 +1,4212 @@
+=========================================
+ FILE: main.cpp
+=========================================
+// Main entry point to the program
+// main.cpp
+#include <filesystem>
+#include <iostream>
+#include <mutex>
+#include <vector>
+#include <thread>
+#include <unistd.h>
+
+#include "socketSend.hpp"
+#include "socketReceive.hpp"
+#include "tools.hpp"
+#include "checkTerminal.hpp"
+#include "DataType.hpp"
+#include <fcntl.h>
+#include <sys/file.h>
+
+#include "gui.hpp"
+#include "producer.hpp"
+#include "consumer.hpp"
+
+// Class to determine wether this instance will runned as consumer or producer
+class InstanceManager{
+private:
+    int lock_fd;
+    bool is_owner;
+public:
+    explicit InstanceManager(const std::string& app_name)
+        : lock_fd(-1), is_owner(false) {
+
+        // Lock file in /tmp/ , cleaned automatically on reboot
+        std::string path = "/tmp/" + app_name + ".lock";
+
+        // Open (or create) the lock file
+        lock_fd = open(path.c_str(), O_CREAT | O_RDWR, 0666);
+        if (lock_fd == -1) {
+            // Can't open file // treat as non‑owner (safe fallback)
+            return;
+        }
+
+        // Try to acquire an exclusive, non‑blocking lock
+        if (flock(lock_fd, LOCK_EX | LOCK_NB) == 0) {
+            // Lock acquired, this are the first instance
+            is_owner = true;
+        } else {
+            // Lock failed, another instance is running
+            close(lock_fd);
+            lock_fd = -1;
+            is_owner = false;
+        }
+    }
+
+    ~InstanceManager() {
+        if (lock_fd != -1) {
+            close(lock_fd); // automatically releases the lock
+        }
+    }
+
+    // True = first/only instance, False = subsequent instance
+    bool is_first_instance() const {
+        return is_owner;
+    }
+
+    // Move constructor/assignment can be deleted for safety
+    InstanceManager(const InstanceManager&) = delete;
+    InstanceManager& operator=(const InstanceManager&) = delete;
+};
+
+
+int main(int argc, char* argv[]) {
+    try {
+        InstanceManager guard("HyprLarp");
+        
+        // Check wether it was run via terminal or not
+        
+    
+        // initialized the WindowData type
+        // WorkspaceData Data;
+    
+        // // Check systme terminal emulator
+        
+        // // No need actually, this is past uses
+        // // Get PID of the process
+        // // pid_t pid = getpid();
+    
+        // // Get all terminal window from that workspace
+        // std::cout << "initialize object done" << std::endl;
+        // Data.FetchWindowID();
+        // main terminal is mentioned twice
+    //     std::cout << "fetch window done" << std::endl;
+    
+    //     std::cout << Data;
+    
+        // Create workspacedata
+    
+        // CLI
+        if (argc > 1)
+        {
+            std::string arg = argv[1];
+    
+            if (arg == "--gui")
+            {
+                // Open GUI
+                setup(argc, argv);
+                return 0;
+            }
+    
+            if (arg == "--help")
+            {
+                std::cout << "HyprLarp. Tools to Larp more efficiently." << std::endl;
+                std::cout << "usage : HyprLarp [-h] [--gui]" << std::endl;
+                std::cout << "" << std::endl;
+                std::cout << "options:" << std::endl;
+                std::cout << "  -h, --help      show this message and exit" << std::endl;
+                std::cout << "  -g, --gui       Launch GUI setting to setup ~/.config/HyprLarp.json" << std::endl;
+                return 0;
+            }
+        }
+    
+        // Run the program
+        const char* homeDir = std::getenv("HOME");
+        if (!homeDir) {
+            std::cerr << "HOME environment variable not set" << std::endl;
+            return -1;
+        }
+
+        std::filesystem::path configPath = std::filesystem::path(homeDir) / ".config/HyprLarp.json";
+        if (!std::filesystem::exists(configPath)) {
+            std::cerr << "Failed to find config file, make sure " << configPath
+                    << " exists by running Hyprlarp --gui" << std::endl;
+            return -1;
+        }
+    
+        if (guard.is_first_instance()) {
+            // Producer
+            mainProducer();
+    
+        } else {
+            // Consumer
+            mainConsumer();
+        }
+        
+    } catch (const std::runtime_error& e) {
+        std::cerr << "HyprLarp Failed to launch " << e.what() << std::endl;
+    }
+
+    
+    return 1;
+}
+=========================================
+ FILE: socketSend.cpp
+=========================================
+// This file contain the implementation of sending socket to Hyrpland IPC to find the propeties of the active window.
+// socketSend.cpp
+
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <sys/un.h>
+#include <iostream>
+#include <vector>
+#include <list>
+#include <mutex>
+#include <nlohmann/json.hpp> 
+
+#include "DataType.hpp"
+//Function that being called
+
+//Function to get the window address from the PID of the process
+int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
+
+    // well we can do this std::vector<int> at = jsonData["at"].get<std::vector<int>>();
+    for (const auto& jsonData: data) {
+        if (jsonData["address"] == address) {
+            // std::cout << "Found window title: " << jsonData["title"] << std::endl;
+            // output = {jsonData["at"], jsonData["size"]};
+
+            output.at = jsonData["at"].get<std::vector<int>>();
+            output.size = jsonData["size"].get<std::vector<int>>();
+
+            return 0;
+        }
+    }
+
+    // if (!found) {
+    //     std::cerr << "queryPosWindow: no matching address found for " << address << std::endl;
+    // }
+
+    return 1;
+}
+
+// Overload function of the query for the PID way of input
+// Output address of the window from input PID
+int queryWindowAddress(const nlohmann::json& data, int address, std::string& output) {
+    bool found = false;
+
+    for (const auto& jsonData: data) {
+        if (jsonData["pid"] == address) {
+//             std::cout << "Found PID window title: " << jsonData["title"] << std::endl;
+            output = jsonData["address"].get<std::string>();
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "queryWindowAddress: no matching pid found for " << address << std::endl;
+    }
+
+    return found ? 0 : 1;
+}
+
+//Overload from terminal window tittle name
+// Output address of the window from input tittle name
+int queryWindowAddress(const nlohmann::json& data, std::string address, std::string& output) {
+    bool found = false;
+
+    for (const auto& jsonData: data) {
+        if (jsonData["title"] == address) {
+//             std::cout << "Found window: " << jsonData["title"] << std::endl;
+            output = jsonData["address"].get<std::string>();
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "queryWindowAddress: no matching window found for " << address << std::endl;
+    }
+
+    return found ? 0 : 1;
+}
+
+// Function to return the Workspace ID from given window address
+int queryWorkspaceId(const nlohmann::json data, std::string address) {
+
+    // nlohmann::json jsonData{};
+
+    // std::cout << "query test" << std::endl;
+
+    for (const auto& jsonData: data) {
+        if (jsonData["address"] == address) {
+//             std::cout << jsonData["title"] << std::endl;
+
+            return jsonData["workspace"]["id"];
+        }
+    }
+
+    // if (output.empty()) {
+    //     return 0;
+    // }
+    
+    return -1;
+}
+
+// Actually it called clients  { clients - lists all windows with their properties }
+// Runs similarly wiht hyprctl clients -j
+int GetWindowsPropertiesData(nlohmann::json& outputData) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    if (sock < 0) {
+        std::cerr << "Socket sends (.sock) connection failed at making sock\n";
+        return 1;
+    }
+
+    // Get socket path
+    // $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock  
+    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
+
+    // Make the sockaddr_un stuff
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+
+    strcpy(addr.sun_path, path.c_str());
+
+    //Connect to the socket
+    int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
+    if (connection < 0) {
+        std::cerr << "Socket connection failed at connecting for socket sends";
+//         std::cout << connection << '\n' << path << std::endl;
+
+        return 1;
+    } else {
+//         std::cout << "Connection succesfull (socket sends)" << std::endl;
+    }
+
+    
+    
+    // Data to sends
+    std::string dataSend = "j/clients";
+
+    // sends socket data
+    int sendsConnection = send(sock, dataSend.c_str(), dataSend.size(), 0);
+
+    if (sendsConnection < 0) {
+        std::cerr << "Error at sending data socket";
+        return 1;
+    }
+    
+    //Data for the result
+    std::string jsonData{};
+
+
+    // Setup buffer with size 4096 bytes size (it sure enough)
+    char buffer[4096]={0};
+
+    // Loop through the recv to get all data
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
+
+        if (bytesReceived <= 0) {
+            break;
+        } 
+
+        jsonData.append(buffer, static_cast<size_t>(bytesReceived));
+
+        if (static_cast<size_t>(bytesReceived) < sizeof(buffer)-1) {
+            break;
+        }
+    }
+
+    // Parse data
+
+    outputData = nlohmann::json::parse(jsonData);
+
+
+    return 0;
+}
+
+
+// Function that called other function
+
+
+// this function have no uses
+// Maybe deprecate it later
+// Using windows address to find window position and size
+// int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, nlohmann::json& data) {
+    
+//     dataMutex.lock();
+//     int result = queryPosWindow(data, address, outputData);
+//     dataMutex.unlock();
+
+//     return result;
+// }
+
+// Using PID address to find windows address
+int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr) {
+    if (!data) {
+        nlohmann::json jsonData;
+        if (GetWindowsPropertiesData(jsonData) != 0) {
+            return 1;
+        }
+        data = &jsonData;
+    }
+
+    // dataMutex.lock();
+    int result = queryWindowAddress(*data, address, outputData);
+    // dataMutex.unlock();
+
+    return result;
+}
+
+//Function overload for windows tittle terminal
+int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data = nullptr) {
+    nlohmann::json localData;
+    if (!data) {
+        GetWindowsPropertiesData(localData);
+        data = &localData;
+    }
+
+    // Use this wierd add mutex
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        int result = queryWindowAddress(*data, address, outputData);
+        
+        return result;
+    };
+    // dataMutex.lock();
+    // dataMutex.unlock();
+    // std::lock_guard<std::mutex> 
+    return 1;
+}
+
+
+// Get all of window ID with the same workspaceID
+nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) {
+    nlohmann::json output;
+    for (const auto& jsonData: data) {
+        if (jsonData["workspace"]["id"] == workspaceID) {
+            // std::cout << jsonData["title"] << std::endl;
+
+            output.emplace_back(jsonData);
+        }
+    }
+
+    // if  (output.empty()) {
+    //     // return -1;
+    //     // errror
+    // }
+
+    return output;
+}
+
+// Testing grounds
+// int main() {
+//     std::string address{};
+//     std::mutex dataMutex;
+//     std::string outputData{};
+//         std::vector<std::vector<int>> outputData2{};
+        
+//         int pid = 1810;
+        
+//         // address = "0x562adcc61790";
+        
+//         int test = SocketSendConnection(pid, dataMutex, outputData);
+        
+//         address = outputData;
+//         //test
+//         std::cout << outputData << std::endl;
+        
+//         int test2 = SocketSendConnection(address, dataMutex, outputData2);
+        
+//         if (!outputData2.empty() && outputData2.size() >= 2 && outputData2[0].size() >= 2 && outputData2[1].size() >= 2) {
+//             std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
+//             std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
+//         }
+
+//     return 1;
+// }
+=========================================
+ FILE: socketSend.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <string>
+#include <vector>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#include "DataType.hpp"
+
+// int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData);
+// int SocketSendConnection(int address, std::mutex& dataMutex, std::string& outputData);
+
+int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output);
+int queryWorkspaceId(const nlohmann::json data, std::string address);
+int GetWindowsPropertiesData(nlohmann::json& outputData);
+// int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt);
+
+int queryWindowAddress(const nlohmann::json& data, std::string address, std::string& output);
+int queryWindowAddress(const nlohmann::json& data, int address, std::string& output);
+
+
+int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr);
+int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data = nullptr);
+nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID);
+=========================================
+ FILE: socketReceive.cpp
+=========================================
+// This file contain the implementation of socket read of the .socket2.sock socket to read what window is changing to pint point which window is the active window.
+// socketRecieve.cpp
+
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <cstring>
+#include <iostream>
+#include <fstream>
+#include <mutex>
+#include <string>
+#include <vector>
+#include <list>
+
+// Function to connect to the socket and read the data from it, then filter out the activewindowv2 and put it in a list of string
+int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMutex) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    if (sock < 0) {
+        std::cerr << "Socket conection failed at making sock\n";
+        return 1;
+    }
+
+    // Get socket path
+    // $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock
+    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket2.sock";
+
+    // Make and setup the sockaddr_un struct
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, path.c_str());
+
+    // Connect the socket
+    int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
+    if (connection < 0) {
+        std::cerr << "Socket connection failed at conecting \n";
+//         std::cout << connection;
+//         std::cout << '\n';
+//         std::cout << path;
+        return 1;
+    } else  {
+//         std::cout << "Connection succesfull!!";
+    }
+
+    // Setup buffer with size 1024 bytes size (hopefully its enough)
+    char buffer[1024];
+
+    // Define data
+    int n;
+
+    // Define varialbel
+    std::string dataBuffer{};
+
+    // Read socket
+    while ((n = read(sock, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[n] = '\0';
+        // std::cout << "RECV: " << buffer << std::flush;
+
+        // data = buffer;
+        dataBuffer.append(buffer, n);
+
+        size_t pos;
+
+        // Test file
+        std::ofstream test_file("test.txt", std::ios::app);
+
+        // get each line of it and save it as a list of the string eacch line.
+        while ((pos = dataBuffer.find('\n')) != std::string::npos) {
+            // Setup and lock mutex
+            // std::mutex socketDataMutex;
+            dataMutex.lock();
+
+            std::string line = dataBuffer.substr(0, pos);
+
+            // Operation to filer out non "activewindowv2"
+            if (line.starts_with("activewindowv2")) {
+//                 std::cout << "theres active windowv2" << std::endl;
+
+                // Put the line in the data
+                data.push_back(line);
+
+                // Test file implementation
+                test_file << line << '\n';
+                test_file.flush();
+            }
+
+            dataBuffer.erase(0, pos+1);
+
+            dataMutex.unlock(); // Unlock mutex
+        }
+    }
+
+    if (n == 0) {
+        std::cerr << "error" << std::endl;
+    }
+
+    if (!dataBuffer.empty()) {
+        data.push_back(dataBuffer);
+    }
+    
+
+    return 1;
+}
+
+// Testing grounds
+// int main() {
+//     std::vector<std::string> data{};
+//     std::mutex dataMutex;
+
+//     int test = SocketReceiveConnection(data, dataMutex);
+
+//     return 1;
+// }
+
+=========================================
+ FILE: socketReceive.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <iostream>
+#include <vector>
+#include <mutex>
+
+
+int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMutex);
+=========================================
+ FILE: layoutWindow.cpp
+=========================================
+// This file contain the implementation of converting raw list of [at,pos] data of each window to a layout that can easily be accesed in the form of coordinate cartesius.
+// layoutWindow.cpp
+
+#include <cstring>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <fstream>
+#include <iostream>
+#include <vector>
+#include <poll.h>
+
+
+#include "DataType.hpp"
+
+
+// Function to convert [at, size] into cartesius coordinate [x, y]
+WindowPosCartesian ConvertPosFormat(WindowPos& DataInput) {
+    // Convert to 4  point for each corver of the window by format of cartesius coordinate
+
+    //Point of left up
+    // std::vector<int> LeftUp{DataInput[0][0],DataInput[0][1]}; // (at x, at y)
+    // std::vector<int> LeftDown{DataInput[0][0], DataInput[0][1] - DataInput[1][1]}; // (at x, at y - size y)
+    // std::vector<int> RightUp{DataInput[0][0] + DataInput[1][0], DataInput[0][1]}; // (at x + size x, at y)
+    // std::vector<int> RightDown{DataInput[0][0] + DataInput[1][0], DataInput[0][1] - DataInput[1][1]}; // (at x + size x, at y - size y)
+
+    // std::cout << "LeftUp:    (" << LeftUp[0] << ", " << LeftUp[1] << ")" << std::endl;
+    // std::cout << "LeftDown:  (" << LeftDown[0] << ", " << LeftDown[1] << ")" << std::endl;
+    // std::cout << "RightUp:   (" << RightUp[0] << ", " << RightUp[1] << ")" << std::endl;
+    // std::cout << "RightDown: (" << RightDown[0] << ", " << RightDown[1] << ")" << std::endl;
+
+    // New implementation
+
+    WindowPosCartesian output;
+
+    output.topLeft = {DataInput.at[0], DataInput.at[1]};
+    output.topRight = {DataInput.at[0], DataInput.at[1] + DataInput.size[1]};
+    output.bottomLeft = {DataInput.at[0]+DataInput.size[0], DataInput.at[1]};
+    output.bottomRight = {DataInput.at[0] + DataInput.size[0], DataInput.at[1] + DataInput.size[1]};
+
+
+    return output;
+}
+
+
+// function to show all of the layout of the windows
+// Constraint : The vector vector is jsut one data, i need vector vector vector of data to work 
+// Which mean I need to convert all single data from socketsend.cpp into batcch in a workspaee tp cpnvert it up here
+
+// int Layout(std::vector<std::vector<int>>& DataInput) {
+//     // DataInput form = [at, size] = [[x, y], [x, y]]
+
+
+//     return 1;
+// }
+
+
+// Testing grounds
+// int main() {
+//     // We need to get testing daata dummy
+//     std::cout << "test part pre populate test data" << std::endl;
+
+//     std::vector<std::vector<int>> Data {
+//         {81,31},
+//         {1808, 1018}
+//     };
+
+//     std::cout << "Test part post populate test data" << std::endl;
+
+
+
+//     int test = ConvertPosFormat(Data);
+// }
+=========================================
+ FILE: layoutWindow.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <iostream>
+#include <vector>
+#include "DataType.hpp"
+
+WindowPosCartesian ConvertPosFormat(WindowPos& DataInput);
+
+=========================================
+ FILE: tools.cpp
+=========================================
+// File contain some basic functionality.
+// tools.cpp
+#include <iostream>
+#include <random>
+#include <string>
+#include <chrono>
+#include <thread>
+
+std::string generate_random_string(std::size_t length) {
+    const std::string characters = "01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::uniform_int_distribution<> distribution(0, characters.size() - 1);
+
+    std::string random_string;
+    for (std::size_t i = 0; i < length; ++i) {
+        random_string += characters[distribution(generator)];
+    }
+
+    return random_string;
+}
+
+
+
+
+std::string ChangeWindowTittleName() {
+
+    // Use 6 random character as uniques identifier
+    std::string Tittle = generate_random_string(6);
+    
+    // Set tittle
+    // we mabe can use     std::cout << "\033]21;" << Tittle << "\007" << std::flush; in future that are kitty spesific
+//     std::cout << "\033]0;"<< Tittle <<"\007" << std::flush;
+    
+    // Give terminal time to process the escape sequence
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    return Tittle;
+}
+
+
+
+
+
+// int main() {
+//     // std::cout << generate_random_string(5);
+//     std::string TittleName = ChangeWindowTittleName();
+//     std::cout << TittleName;
+//     std::cin.get();
+//     return 1;
+// }
+=========================================
+ FILE: tools.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <iostream>
+
+
+std::string generate_random_string(std::size_t length);
+
+
+// Function to change current terminal window tittle into random
+std::string ChangeWindowTittleName();
+=========================================
+ FILE: DataType.cpp
+=========================================
+// File of the project data type
+// DataType.cpp
+#include <cstddef>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <nlohmann/json.hpp>
+#include <vector>
+#include <list>
+#include <unistd.h>
+#include "DataType.hpp"
+#include "socketSend.hpp"
+#include "tools.hpp"
+#include "layoutWindow.hpp"
+#include "checkTerminal.hpp"
+#include <unordered_set>
+#include "terminal.hpp"
+#include "simdjson.h"
+#include <string_view>
+#include <cstdlib>
+#include "terminalLayout.hpp"
+#include <unordered_map>
+
+extern "C" {
+    #include <libavformat/avformat.h>
+}
+
+static WindowPos windowPosFromClient(const nlohmann::json& client) {
+    return {
+        client["at"].get<std::vector<int>>(),
+        client["size"].get<std::vector<int>>()
+    };
+}
+
+// Prefer the last matching client entry; Hyprland can briefly emit duplicates
+// during tiling animations and the later entry is usually the settled one.
+static bool lookupClientGeometry(const nlohmann::json& data, const std::string& windowID,
+                                 WindowPos& pos, pid_t& pid) {
+    bool found = false;
+
+    for (const auto& client : data) {
+        if (!client.contains("address")) {
+            continue;
+        }
+        if (client["address"].get<std::string>() != windowID) {
+            continue;
+        }
+
+        pos = windowPosFromClient(client);
+        pid = client.contains("pid") ? client["pid"].get<pid_t>() : 0;
+        found = true;
+    }
+
+    return found;
+}
+
+std::string readVideoPath() {
+    const char* homeDir = std::getenv("HOME");
+    std::string configPath = homeDir ? std::string(homeDir) + "/.config/HyprLarp.json" : "HyprLarp.json";
+    simdjson::dom::parser parser;
+    auto doc = parser.load(configPath);
+    auto path = doc["videoPath"];
+    if (path.error()) {
+        throw std::runtime_error("videoPath not found in config");
+    }
+    return std::string(path.value().get_string().value());
+}
+
+// Function to get videometadata
+int WindowData::GetVideoData() {
+    
+
+    const char* filename = this->videoData.videoPath.c_str();
+    AVFormatContext* format_ctx = nullptr;
+    
+
+    if (avformat_open_input(&format_ctx, filename, nullptr, nullptr) != 0) {
+        std::cerr << "Could not open file\n";
+        std::cout << filename << std::endl;
+
+        throw std::runtime_error("avformat_open_input : Could not open file");
+
+        return -1;
+    }
+
+    if (avformat_find_stream_info(format_ctx, nullptr) < 0) {
+        std::cerr << "Could not find stream information\n";
+        avformat_close_input(&format_ctx);
+        return -1;
+    }
+
+    for (unsigned int i = 0; i < format_ctx->nb_streams; i++) {
+        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            AVCodecParameters* codec_params = format_ctx->streams[i]->codecpar;
+            AVStream* stream = format_ctx->streams[i];
+
+            this->videoData.video_w = codec_params->width;
+            this->videoData.video_h= codec_params->height;
+            
+            // Calculate FPS reliably via fractional numbers
+            this->videoData.fps = 0.0;
+
+            if (stream->avg_frame_rate.den > 0) {
+                this->videoData.fps = static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
+            }
+
+            break;
+        }
+    }
+
+    avformat_close_input(&format_ctx);
+
+    return 0;
+};
+
+// Function to check wether the config file already exist or not
+bool configFileExists(const std::string& path) {
+    // std::filesystem::exists returns true if the path exists, false otherwise
+    return std::filesystem::exists(path);
+}
+
+// Parse ~/.config/HyprLarp.json
+videoPos jsonParser() {
+    simdjson::dom::parser parser;
+
+    const char* homeDir = std::getenv("HOME");
+    std::string filePath = homeDir ? std::string(homeDir) + "/.config/HyprLarp.json" : "HyprLarp.json";
+    simdjson::dom::element doc = parser.load(filePath);
+
+    auto corners = doc["cornerLocation"];
+
+    // Mapiing 
+    int64_t l = corners.at(0).at(0).get_int64();
+    int64_t r = corners.at(3).at(0).get_int64();
+    int64_t t = corners.at(0).at(1).get_int64();
+    int64_t b = corners.at(3).at(1).get_int64();
+
+    return {
+        static_cast<int>(l),
+        static_cast<int>(r),
+        static_cast<int>(t),
+        static_cast<int>(b)
+    };
+};
+
+// Constructor 
+WorkspaceData::WorkspaceData() {
+    // Pupulate the data part
+    GetWindowsPropertiesData(WorkspaceData::data);
+
+    // Change implementation to find main window
+    WorkspaceData::setWorkspaceIDStartup();
+
+    // Inttitiae the pos video
+    this->videoPos = jsonParser();
+
+    // Put main terminal window ID into windowData type in the array
+    //     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
+
+    WorkspaceData::InsertWindowData(this->mainTerminalWindowID, 1);
+
+}
+
+// Constructor function
+// updated version
+WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos) {
+    
+    // Put requirement data into the object
+    this->windowID = windowID;
+    this->windowType = windowType;
+    this->videoData.videoPath = readVideoPath();
+
+
+    // this->windowPos = pos; 
+
+    // Find position of the window
+    this->windowPos = GetWindowPos(data);
+    
+    pid = 0;  // default
+    if (data.is_array()) {
+        for (const auto& client : data) {
+            if (client.contains("address") && client["address"].get<std::string>() == this->windowID) {
+                if (client.contains("pid")) {
+                    pid = client["pid"].get<pid_t>();
+                    break;
+                }
+            }
+        }
+    }
+
+    // Get internal data
+    this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
+
+    // Stup InternalWindowData
+    this->internalWindowPos = {
+        this->internalTerminalGeometry.grid_screen_x,
+        this->internalTerminalGeometry.grid_screen_x + this->internalTerminalGeometry.w,
+        this->internalTerminalGeometry.grid_screen_y + this->internalTerminalGeometry.h,
+        this->internalTerminalGeometry.grid_screen_y
+    };
+
+    // Find cartesian of the window
+    // queryPosWindow();
+    // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
+    GetWindowPosCartesian();
+
+    GetVideoData();
+
+    // Setup viewport
+    // GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
+
+    // debug / test
+    std::cerr << "layoutCalculation inputs:"
+          << " v_left=" << pos.video_left << " v_top=" << pos.video_top
+          << " v_right=" << pos.video_right << " v_bottom=" << pos.video_bottom
+          << " term_grid_x=" << internalTerminalGeometry.grid_screen_x
+          << " term_grid_y=" << internalTerminalGeometry.grid_screen_y
+          << " term_w=" << internalTerminalGeometry.w
+          << " term_h=" << internalTerminalGeometry.h
+          << " cell_w=" << internalTerminalGeometry.cell_w
+          << " cell_h=" << internalTerminalGeometry.cell_h
+          << std::endl;
+
+    // Setup terminalLayout
+    layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+
+}
+
+WindowData::WindowData(int windowType, std::string windowID, const WindowPos& pos, pid_t pid, videoPos vpos)
+{
+    this->windowID = windowID;
+    this->windowType = windowType;
+    this->windowPos = pos;
+    this->pid = pid;
+    this->videoData.videoPath = readVideoPath();
+
+    // The rest is identical to your existing constructor:
+    this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
+    this->internalWindowPos = {
+        this->internalTerminalGeometry.grid_screen_x,
+        this->internalTerminalGeometry.grid_screen_x + this->internalTerminalGeometry.w,
+        this->internalTerminalGeometry.grid_screen_y + this->internalTerminalGeometry.h,
+        this->internalTerminalGeometry.grid_screen_y
+    };
+    GetWindowPosCartesian();
+    GetVideoData();
+    layoutCalculation(vpos.video_left, vpos.video_top, vpos.video_right, vpos.video_bottom,
+                      this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+}
+
+
+// Overload Constructor function
+// why would i do this??
+// deprecated
+WindowData::WindowData(int windowType) {
+    // Get window data (see improvement part in todo.txt)
+    nlohmann::json data;
+    GetWindowsPropertiesData(data);
+
+    // Get windowID
+    std::string windowID;
+    pid_t pid = FindTerminalPID();
+    GetWindowAddress(pid, windowID, &data);
+    
+    // Put requirement data into the object
+    this->windowID = windowID;
+    this->windowType = windowType;
+
+    // Find position of the window
+    this->windowPos = GetWindowPos(data);
+
+    // Get internal data
+    this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
+
+    // Stup InternalWindowData
+    this->internalWindowPos = {
+        this->internalTerminalGeometry.grid_screen_x,
+        this->internalTerminalGeometry.grid_screen_x + this->internalTerminalGeometry.w,
+        this->internalTerminalGeometry.grid_screen_y + this->internalTerminalGeometry.h,
+        this->internalTerminalGeometry.grid_screen_y
+    };
+
+    // Find cartesian of the window
+    // queryPosWindow();
+    // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
+    GetWindowPosCartesian();
+
+
+    // Setup viewport
+    // GetOverlap(this->, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState &viewPort)
+}
+
+// ts shit
+int WindowData::GetWindowPosCartesian() {
+    this->windowPosCartesian = ConvertPosFormat(this->windowPos);
+    return 1;
+}
+
+// Function that input hyprctl client data and output and the current windowID of the object and output the WindowPos object of its pos, size
+WindowPos WindowData::GetWindowPos(nlohmann::json& data) {
+    std::mutex mutex;
+    WindowPos output;
+    
+    // why i need double vector of int? yeah actually jst delete it
+    if (queryPosWindow(data, this->windowID, output) == 1) {
+        std::cerr << "Cant find post window somehow";
+    };
+    
+    return output;
+}
+
+// Function to return given terminal window tittle name's window address
+std::string WorkspaceData::windowID(std::string TerminalWindowTittleName) {
+
+    // Find the main terminal window ID and workspace ID of it
+    std::mutex socketSendMutex;
+    std::string windowsAddress;
+
+    int socketSend = GetWindowAddress(TerminalWindowTittleName, socketSendMutex, windowsAddress, &this->data);
+
+    if (socketSend !=0) {
+        throw std::runtime_error("Failed to found window tittle name");
+    }
+
+    return windowsAddress;
+}
+
+int WorkspaceData::FindWorkspaceID(std::string& windowID) {
+    return queryWorkspaceId(this->data, windowID);
+} 
+
+// Function to insert a windowData to the workspaceData from window ID and window Type
+// window type {1: main, 0 : sub}
+int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
+    WindowPos pos;
+    pid_t windowPid = 0;
+
+    if (!lookupClientGeometry(this->data, windowID, pos, windowPid)) {
+        std::cerr << "InsertWindowData: no client entry for " << windowID << std::endl;
+        return 0;
+    }
+
+    this->windowData.emplace_back(windowType, windowID, pos, windowPid, this->videoPos);
+    this->windowData.back().videoData.videoPath = this->videoPath;
+
+    return 1;
+}
+
+// Fetch all terminal windowID that have workspaceID
+// Output of vector from windowID
+int WorkspaceData::FetchWindowID() {
+    GetWindowsPropertiesData(this->data);
+
+    std::unordered_set<std::string> currentWindow = WorkspaceData::currentWindowData();
+
+    // Deduplicate by address; keep the last workspace entry for each window.
+    std::unordered_map<std::string, nlohmann::json> workspaceClients;
+    for (const auto& jsonData : GetAllWindowOfaWorkspaceID(this->data, this->WorkspaceID)) {
+        if (!IsPIDTerminal(jsonData["pid"])) {
+            continue;
+        }
+        workspaceClients[jsonData["address"].get<std::string>()] = jsonData;
+    }
+
+    for (const auto& [address, jsonData] : workspaceClients) {
+        if (currentWindow.count(address)) {
+            continue;
+        }
+
+        WindowPos pos = windowPosFromClient(jsonData);
+        pid_t pid = jsonData["pid"].get<pid_t>();
+        this->windowData.emplace_back(0, address, pos, pid, this->videoPos);
+    }
+    return 1;
+};
+
+std::unordered_set<std::string> WorkspaceData::currentWindowData() {
+    std::unordered_set<std::string> output;
+    
+    for (const auto& i: this->windowData) {
+
+        output.insert(i.getWindowID());   
+    }
+
+    return output;
+};
+
+
+static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
+    os << "[";
+    
+    for (size_t i = 0; i < vec.size(); i++) {
+        os << vec[i];
+
+        if (i != vec.size() - 1)
+            os << ", ";
+    }
+
+    os << "]";
+}
+
+std::ostream& operator<<(std::ostream& os, const WindowData& wd) {
+    os << "WindowData {\n";
+
+    os << "  windowID: " << wd.windowID << "\n";
+    os << "  windowType: " << wd.windowType << "\n";
+
+    os << "  at: ";
+    PrintVec(os, wd.windowPos.at);
+    os << "\n";
+
+    os << "  size: ";
+    PrintVec(os, wd.windowPos.size);
+    os << "\n";
+
+    os << "  topLeft: ";
+    PrintVec(os, wd.windowPosCartesian.topLeft);
+    os << "\n";
+
+    os << "  topRight: ";
+    PrintVec(os, wd.windowPosCartesian.topRight);
+    os << "\n";
+
+    os << "  bottomLeft: ";
+    PrintVec(os, wd.windowPosCartesian.bottomLeft);
+    os << "\n";
+
+    os << "  bottomRight: ";
+    PrintVec(os, wd.windowPosCartesian.bottomRight);
+    os << "\n";
+
+    os << "}";
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const WorkspaceData& ws) {
+    os << "WorkspaceData {\n";
+
+    os << "  WorkspaceID: " << ws.WorkspaceID << "\n";
+    os << "  mainTerminalWindowID: " << ws.mainTerminalWindowID << "\n";
+
+    os << "  windowData:\n";
+
+    for (const auto& window : ws.windowData) {
+        os << window << "\n";
+    }
+
+    os << "}";
+
+    return os;
+}
+
+
+int WorkspaceData::setWorkspaceIDStartup() {
+
+    // Old implementation
+    // std::string TerminalWindowTittleName = ChangeWindowTittleName();
+
+    // // Get main terminal window ID (address)
+    // this->mainTerminalWindowID = WorkspaceData::windowID(TerminalWindowTittleName);
+    
+
+    // // Set workspaceID to the main terminal window ID
+    // this->WorkspaceID = WorkspaceData::FindWorkspaceID(this->mainTerminalWindowID);
+
+    // New implementation
+    pid_t pid = FindTerminalPID();
+//     std::cout << "terminal pid found is : " << pid << std::endl;
+    if (pid != -1) {
+        // I neeed to convert it first from PID into thw window ID
+
+        GetWindowAddress(pid, this->mainTerminalWindowID, &this->data);
+
+        this->WorkspaceID = WorkspaceData::FindWorkspaceID(this->mainTerminalWindowID);
+        return 1;
+    };
+
+    std::runtime_error("cant fine main terminal");
+    return 0;
+
+};
+
+
+=========================================
+ FILE: DataType.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <iostream>
+#include <string>
+#include <sys/types.h>
+#include <vector>
+#include <nlohmann/json.hpp>
+#include <unordered_set>
+// #include "simdjson.h"
+
+struct WindowPos {
+    std::vector<int> at; // x/y
+    std::vector<int> size; // w/h
+};
+
+
+// Cartesian position in [x, y]
+// Yeah i think i dont need this cuz i need at and size instead lmao
+struct WindowPosCartesian {
+    std::vector<int> topLeft; // top left point
+    std::vector<int> topRight; // top right point
+    std::vector<int> bottomLeft; // bottom left point
+    std::vector<int> bottomRight; // bottom right point
+};
+
+struct InternalTerminalGeometry {
+    int w, h;                 // Pixel size of the text grid (inner area, excludes title bar/borders)
+    int cols, rows;           // Number of character cells in the grid (e.g., 80x24)
+    int pad_x, pad_y;         // Pixel offset from outer window to the text grid (title bar + left/right padding)
+    int grid_screen_x, grid_screen_y; // Absolute screen pixel coordinates of the grid's top-left corner
+    int cell_w, cell_h;       // Pixel size of one character cell (text_w / cols, text_h / rows)
+};
+
+struct InternalWindowPos {
+    int term_left;
+    int term_right;
+    int term_bottom;
+    int term_top;
+};
+
+// corner location
+struct videoPos {
+    int video_left;
+    int video_right;
+    int video_top;
+    int video_bottom;
+};
+
+// overlap thingy idk
+struct ViewportState {
+    bool isRender = false;
+
+    // Absolute desktop coor of the intersection area
+    int overlap_x = 0;
+    int overlap_y = 0;
+    int overlap_w = 0;
+    int overlap_h = 0;
+};
+
+// Render struct data
+struct LayoutRender {
+    int x;
+    int y;
+    int w;
+    int h;
+
+    int cursor_col; // Sets terminal column location via ANSI string "\x1b[row;colH"
+    int cursor_row;// Sets terminal row location via ANSI string "\x1b[row;colH"
+    int disp_cols;  // Maps to Kitty 'c': How many character column blocks wide to draw the frame
+    int disp_rows;  // Maps to Kitty 'r': How many character row blocks high to draw the frame
+    int sub_offset_x; // Maps to Kitty 'X': Pixel nudges to shift the image right inside the text cell
+    int sub_offset_y; // Maps to Kitty 'Y': Pixel nudges to shift the image down inside the text cell
+};
+
+// Main struct of video data
+struct videoData {
+    int video_w;
+    int video_h;
+    double fps;
+    std::string videoPath;
+};
+
+class WindowData {
+private:
+
+    LayoutRender layoutRender;
+
+    
+    ViewportState viewPort;
+    
+    //Window pos in [at, size]
+    WindowPos windowPos;
+    
+    // Window pos in cartesian point 4 of em.
+    // maybe deprecated later
+    WindowPosCartesian windowPosCartesian;
+    
+    // Internal terminal geometry dimention
+    InternalTerminalGeometry internalTerminalGeometry;
+    
+    // Internal window Pos
+    InternalWindowPos internalWindowPos;
+    
+    std::string windowID;
+    
+    // window type {1: main, 0 : sub}
+    int windowType;
+    
+    pid_t pid = 0;
+    
+    public:
+    videoData videoData;
+    
+    // Helper function
+    const LayoutRender& getLayoutRender() const { return layoutRender; }
+    const ViewportState& getViewport() const { return viewPort; }
+    const pid_t& getPid() const { return pid; }
+
+    std::vector<int> windowPosition;
+    
+    WindowPos GetWindowPos(nlohmann::json& data);
+
+    // Function to populate cartesian from windowPos
+    int GetWindowPosCartesian();
+
+    // Populate videoData
+    int GetVideoData();
+
+    // Constructor
+    WindowData(int windowType, std::string windowID, nlohmann::json& data, videoPos pos);
+    WindowData(int windowType);
+    WindowData(int windowType, std::string windowID, const WindowPos& pos, pid_t pid, videoPos vpos);
+
+    friend std::ostream& operator<<(std::ostream& os, const WindowData& wd);
+
+    const std::string& getWindowID() const {
+        return windowID;
+    }
+};
+
+class WorkspaceData {
+
+private:
+    // Hyprctl client -j full data
+    nlohmann::json data;
+
+    // Vector containing all data of the window properties
+    
+    //fetch from initial
+    int WorkspaceID;
+    
+    std::vector<WindowData> windowData;
+    videoPos videoPos;
+
+
+public:
+    const std::vector<WindowData>& getWindowData() const { return windowData; }
+
+    //Main terminal window address
+    std::string mainTerminalWindowID;
+
+    // Video path
+    std::string videoPath;
+
+    // Function to find workspace ID (address) from given terminal window tittle name
+    std::string windowID(std::string TerminalWindowTittleName);
+
+    // Function to find workspace ID from given window ID (address)
+    int FindWorkspaceID(std::string& windowID);
+
+    // Put window ID into the windowdata
+    int InsertWindowData(std::string& windowID, int windowType);
+
+    // Fetch all windowID that have workspaceID and put it into windowData
+    int FetchWindowID();
+
+    // function that check terminal of where the program is run and find its workspaceID
+    int setWorkspaceIDStartup();
+
+    // Output all of the window ID that currently in the object windowData
+    std::unordered_set<std::string> currentWindowData();
+
+    // refresh data
+    // this shit propably going to be hard asf, I need to fetch from socketRecieve of the new updated data.
+
+    // struct videoPos GiveVideoPos() {
+        // return this->videoPos;
+    // };
+
+    // Constructor
+    WorkspaceData();
+
+    friend std::ostream& operator<<(std::ostream& os, const WorkspaceData& ws);
+};
+
+=========================================
+ FILE: checkTerminal.cpp
+=========================================
+//Use to check if the executable was run in terminal or not and what terminal is it
+// checkTerminal.cpp
+#include <iostream>
+#include <unistd.h>
+#include <string>
+#include <fstream>
+#include <unordered_set>
+#include <optional>
+
+// return 1 if it run from terminal, return 0 if it not, and -1 if theres error
+int checkTerminalWhichCurrentlyRunOn() {
+    if (isatty(STDIN_FILENO)) {
+//         std::cout << "Running from terminal\n";
+        return 1;
+    } else {
+//         std::cout << "Not running from terminal\n";
+        return 0;
+    }
+
+
+    return -1;
+}
+
+
+// Function to get the function process name from PID
+std::string GetProcessName(pid_t pid) {
+    std::ifstream file("/proc/" + std::to_string(pid) + "/comm");
+
+    std::string name;
+    std::getline(file, name);
+
+    return name;
+}
+
+#include <sstream>
+
+pid_t GetParentPID(pid_t pid) {
+    std::ifstream file("/proc/" + std::to_string(pid) + "/stat");
+
+    if (!file.is_open()) {
+        return -1;
+    }
+
+    std::string line;
+    std::getline(file, line);
+
+    size_t endParen = line.rfind(')');
+
+    if (endParen == std::string::npos) {
+        return -1;
+    }
+
+    std::string after = line.substr(endParen + 2);
+
+    std::istringstream iss(after);
+
+    char state;
+    pid_t ppid;
+
+    iss >> state >> ppid;
+
+    return ppid;
+}
+
+
+// Terminal emulator list
+std::unordered_set<std::string> terminals = {
+    "kitty",
+    "alacritty",
+    "wezterm",
+    "foot",
+    "ghostty",
+    "konsole",
+    "gnome-terminal-server",
+    "xfce4-terminal",
+    "tilix",
+    "st"
+};
+
+
+// We can use this instead of the tittle??? it return the window PID
+pid_t FindTerminalPID() {
+
+    pid_t pid = getpid();
+
+    while (pid > 1) {
+
+        std::string name = GetProcessName(pid);
+
+//         std::cout << "PID: " << pid
+//                 << " NAME: [" << name << "]\n";
+
+        if (terminals.contains(name)) {
+//             std::cout << "FOUND TERMINAL\n";
+            return pid;
+        }
+
+        pid = GetParentPID(pid);
+    }
+
+    return -1;
+}
+
+
+// Is terminal return 1, not terminal return 0.
+int IsPIDTerminal(pid_t pid) {
+
+    while (pid > 1) {
+
+        std::string name = GetProcessName(pid);
+
+//         std::cout << "PID: " << pid
+//                 << " NAME: [" << name << "]\n";
+
+        if (terminals.contains(name)) {
+//             std::cout << "FOUND TERMINAL\n";
+            return 1;
+        }
+
+        pid = GetParentPID(pid);
+    }
+
+    return 0;
+}
+
+// int main() {
+//     std::cout << FindTerminalPID() << std::endl;
+// }
+=========================================
+ FILE: checkTerminal.hpp (Auto-located)
+=========================================
+#pragma once
+#include <iostream>
+
+
+int checkTerminalWhichCurrentlyRunOn();
+
+pid_t FindTerminalPID();
+
+int IsPIDTerminal(pid_t pid);
+=========================================
+ FILE: terminal.cpp
+=========================================
+// Contain the function to read the response from the terminal
+// terminal.cpp
+#include <cstring>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <fstream>
+#include <iostream>
+#include <vector>
+#include <poll.h>
+#include <termios.h>
+#include "DataType.hpp"
+#include <termios.h>
+#include <sys/ioctl.h>
+
+// Set terminal to raw mode to read escape sequences instantly
+bool set_terminal_raw(struct termios& original) {
+    if (tcgetattr(STDIN_FILENO, &original) == -1) return false;
+    
+    struct termios raw = original;
+    // Disable canonical mode (line buffering) and echo
+    raw.c_lflag &= ~(ICANON | ECHO);
+    // Set minimum read to 1 character, no timeout
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    
+    return tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) != -1;
+}
+
+// Restore original terminal settings
+void restore_terminal(const struct termios& original) {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &original);
+}
+
+// Function to read the response from the terminal with a timeout
+std::string read_terminal_response(int timeout = 100) {
+    struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
+    std::string result;
+    char ch;
+
+    while (true) {
+        int ret = poll(&pfd, 1, timeout);
+        if (ret < 0) {
+            std::cerr << "Error during poll: " << strerror(errno) << std::endl;
+            break;
+        } else if (ret == 0) {
+            // Timeout - just break silently, it's normal
+            break;
+        } else {
+            // Data available
+            ssize_t bytesRead = read(STDIN_FILENO, &ch, 1);
+            if (bytesRead <= 0) break;
+            result += ch;
+            if (ch == 't') break; // End of Kitty response
+        }
+    }
+
+    return result;
+}
+
+// Function to parse the terminal response and extract height and width
+bool parse_terminal_response(const std::string& resp, int& h, int& w) {
+    size_t start = resp.find('[');
+    if (start == std::string::npos) return false;
+    size_t first_semi = resp.find(';', start);
+    if (first_semi == std::string::npos) return false;
+    size_t second_semi = resp.find(';', first_semi + 1);
+    if (second_semi == std::string::npos) return false;
+
+    try {
+        h = std::stoi(resp.substr(first_semi + 1, second_semi - first_semi - 1));
+        w = std::stoi(resp.substr(second_semi + 1, resp.find('t') - second_semi - 1));
+        return true;
+    } catch (...) { return false; }
+}
+
+// Function to query the terminal for its internal geometry (pixel dimensions and grid size)
+bool query_terminal_internal_geometry(int& w, int& h, int& cols, int& rows) {
+    struct termios original;
+    if (!set_terminal_raw(original)) {
+        std::cerr << "Failed to set terminal raw mode" << std::endl;
+        return false;
+    }
+
+    // Flush stale input
+    tcflush(STDIN_FILENO, TCIFLUSH);
+    
+    // Send queries
+    std::cout << "\x1b[19t" << std::flush;  // text area in pixels
+    std::cout << "\x1b[18t" << std::flush;  // grid size (rows/cols)
+
+    // Read responses (give more time, 300ms is safe)
+    std::string resp1 = read_terminal_response(300);
+    std::string resp2 = read_terminal_response(300);
+
+    // Restore terminal mode immediately after reading
+    restore_terminal(original);
+
+    // Parse
+    if (!parse_terminal_response(resp1, h, w)) return false;
+    if (!parse_terminal_response(resp2, rows, cols)) return false;
+
+    return true;
+}
+
+// Internded method
+int get_terminal_internal_geometry(int& text_w, int& text_h, int& cols, int& rows) {
+    struct winsize ws;
+
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1) {
+        std::cerr << "cant ioctl" << std::endl;
+        return -1;
+    }
+
+    if (ws.ws_xpixel == 0 || ws.ws_ypixel == 0) {
+        std::cerr << "no data" << std::endl;
+        // Fallback: use the escape sequence method as a last resort,
+        // but realistically, if Kitty returns 0, something is very wrong.
+        return -1;
+    }
+
+    text_w = ws.ws_xpixel;
+    text_h = ws.ws_ypixel;
+    cols = ws.ws_col;
+    rows = ws.ws_row;
+
+
+    return 1;
+}
+
+// Function to return windows's terminal internal geommetry geometry
+InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
+    int w, h, col, row;
+    
+    // if (!query_terminal_internal_geometry(w, h, col, row)) {
+    //     std::cerr << "Failed to query terminal internal geometry" << std::endl;
+    //     return {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // }
+
+    if (!get_terminal_internal_geometry(w, h, col, row)) {
+        std::cerr << "Failed to get terminal internal geometry via ioctl" << std::endl;
+        return {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    }
+
+    // FIXED: Use size[0] and size[1] (dimensions), not at[0]/at[1] (screen coords)
+    int pad_x = (pos.size[0] - w) / 2;
+    int pad_y = pos.size[1] - h;
+
+    int grid_screen_x = pos.at[0] + pad_x;
+    int grid_screen_y = pos.at[1] + pad_y;
+
+    int cell_w = w / col;
+    int cell_h = h / row;
+
+    // std::cout << "Internal Geometry: w=" << w << ", h=" << h 
+    //           << ", cols=" << col << ", rows=" << row << std::endl;
+    // std::cout << "Grid Screen Position: (" << grid_screen_x << ", " << grid_screen_y << ")" << std::endl;
+
+    return {w, h, col, row, pad_x, pad_y, grid_screen_x, grid_screen_y, cell_w, cell_h};
+}
+=========================================
+ FILE: terminal.hpp (Auto-located)
+=========================================
+#pragma once
+#include <string>
+#include "DataType.hpp"
+
+std::string read_terminal_response(int timeout = 100);
+bool parse_terminal_response(const std::string& resp, int& h, int& w);
+bool query_terminal_internal_geometry(int& w, int& h, int& cols, int& rows);
+InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos);
+=========================================
+ FILE: producer.cpp
+=========================================
+// producer.cpp
+#include "DataType.hpp"
+#include <csignal>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
+#include <string>
+#include <algorithm>
+
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+}
+
+#include "simdjson.h"
+
+#include "videoDecoder.hpp"
+#include "shm.hpp"
+#include "DataType.hpp"
+#include <string>
+#include "layoutSHM.hpp"
+#include <cstring>
+#include <chrono>
+
+
+// Parse ~/.config/HyprLarp.json
+std::string jsonParser() {
+    simdjson::dom::parser parser;
+
+    const char* homeDir = std::getenv("HOME");
+    std::string filePath = homeDir
+        ? std::string(homeDir) + "/.config/HyprLarp.json"
+        : "HyprLarp.json";
+
+    auto doc = parser.load(filePath);
+    if (doc.error()) {
+        throw std::runtime_error("Failed to load JSON config");
+    }
+
+    auto path = doc["videoPath"];
+    if (path.error()) {
+        throw std::runtime_error("videoPath not found");
+    }
+
+    return std::string(path.value().get_string().value());
+}
+
+static void handle_signal(int) {
+    shm_unlink("/HyprLarp-Producer");
+    _exit(1);
+}
+
+
+void publishLayout(WorkspaceData& ws) {
+    static LayoutHeader* hdr = nullptr;
+    static int fd = -1;
+
+    // if (!hdr) {
+    //     fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
+    //     if (fd == -1) {
+    //         perror("publishLayout: shm_open");
+    //         return;
+    //     }
+    //     if (ftruncate(fd, sizeof(LayoutHeader)) == -1) {
+    //         perror("publishLayout: ftruncate");
+    //         return;
+    //     }
+    //     hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader),
+    //                               PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    //     close(fd);  // no longer needed after mmap
+    //     if (hdr == MAP_FAILED) {
+    //         perror("publishLayout: mmap");
+    //         hdr = nullptr;
+    //         return;
+    //     }
+    //     // Zero out the entire header on first mapping (ensures clean state)
+    //     memset(hdr, 0, sizeof(LayoutHeader));
+    // }
+
+    // debug test impelemntatio
+    if (!hdr) {
+        fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
+        if (fd == -1) { perror("shm_open"); return; }
+        if (ftruncate(fd, sizeof(LayoutHeader)) == -1) { perror("ftruncate"); return; }
+        hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader),
+                                  PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        close(fd);
+        if (hdr == MAP_FAILED) { hdr = nullptr; return; }
+    }
+
+    memset(hdr, 0, sizeof(LayoutHeader));
+
+
+    uint32_t i = 0;
+    for (const auto& w : ws.getWindowData()) {
+        if (i >= MAX_WINDOWS) break;  // safety
+
+        const auto& lr = w.getLayoutRender();
+        const auto& vp = w.getViewport();
+
+        WindowLayoutEntry e{};
+        std::strncpy(e.windowAddress, w.getWindowID().c_str(), sizeof(e.windowAddress) - 1);
+        e.windowAddress[sizeof(e.windowAddress) - 1] = '\0';  // ensure null termination
+        e.pid   = w.getPid();
+        e.valid = 1;
+
+        // Copy layoutRender fields
+        e.x           = lr.x;
+        e.y           = lr.y;
+        e.w           = lr.w;
+        e.h           = lr.h;
+        e.cursor_col  = lr.cursor_col;
+        e.cursor_row  = lr.cursor_row;
+        e.disp_cols   = lr.disp_cols;
+        e.disp_rows   = lr.disp_rows;
+        e.sub_offset_x = lr.sub_offset_x;
+        e.sub_offset_y = lr.sub_offset_y;
+
+        // Copy ViewportState fields
+        e.isRender   = vp.isRender ? 1 : 0;
+        e.overlap_x  = vp.overlap_x;
+        e.overlap_y  = vp.overlap_y;
+        e.overlap_w  = vp.overlap_w;
+        e.overlap_h  = vp.overlap_h;
+
+        hdr->entries[i++] = e;
+
+        // Debug test
+        std::cerr << "Publishing window: " << e.windowAddress << " pid=" << e.pid << std::endl;
+    }
+
+    hdr->count.store(i, std::memory_order_release);
+    hdr->version.fetch_add(1, std::memory_order_release);
+
+
+}
+
+int setupWorkspaceData() {
+    // Setup workspace class
+    WorkspaceData workspaceData;
+
+    // Get windowData
+    workspaceData.FetchWindowID();
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    publishLayout(workspaceData);
+
+    return 0;
+};
+
+// Main enries to producer
+int mainProducer() {
+    std::signal(SIGINT, handle_signal);
+    std::signal(SIGTERM, handle_signal);
+
+    // WorkspaceData
+    setupWorkspaceData();
+
+    // Setup VideoDecoder function
+    VideoDecoder decoder;
+
+    // Setup, create, and populate SHM metadata
+    bool decode_open = decoder.open(jsonParser());
+
+    if (!decode_open) {
+        std::cerr << "Producer : Failed to open the decode" << std::endl;
+        throw std::runtime_error("Producer/decode : cant decode video");
+
+        return -1;
+    }
+
+    VideoFrameData frame;
+    // int desired_frame = 1; 
+
+    WorkspaceData workspaceData;
+    workspaceData.FetchWindowID();
+    publishLayout(workspaceData);
+
+    // Loop the video repeatedly
+    int loop_count = 0;
+    while (true) {
+        loop_count++;
+        // std::cout << "[PRODUCER] === Loop " << loop_count << " ===" << std::endl;
+        decodeVideo(decoder, frame);
+        if (!decoder.rewind()) {
+            std::cerr << "producer: failed to rewind video" << std::endl;
+            throw std::runtime_error("Producer/decode : Failed at replaying the video");
+            break;
+        }
+        
+        static auto lastCheck = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastCheck > std::chrono::milliseconds(500)) {
+            workspaceData.FetchWindowID();   // refresh window list
+            publishLayout(workspaceData);
+            lastCheck = now;
+        }
+    }
+
+//     std::cout << "SHM deleted" << std::endl;
+    deleteSHM();
+
+    return 0;
+}
+=========================================
+ FILE: producer.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <string>
+
+int mainProducer();
+std::string jsonParser();
+=========================================
+ FILE: videoDecoder.cpp
+=========================================
+// videoDecoder.cpp
+#include <iostream>
+#include <string>
+#include <chrono>
+#include "videoDecoder.hpp"
+#include <thread>
+
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/dict.h>
+}
+
+
+// full decoder 
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto last_frame_time = start_time;
+    int frame_count = 0;
+
+    while (decoder.read_next_frame(&frame)) {
+        auto current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = current_time - start_time;
+        double elapsed_seconds = elapsed.count();
+        double time_remaining = frame.timestamp_seconds - elapsed_seconds;
+        
+        if (time_remaining > 0) {
+            std::this_thread::sleep_for(std::chrono::duration<double>(time_remaining));
+        }
+        
+        auto after_sleep = std::chrono::high_resolution_clock::now();
+        auto frame_delta = std::chrono::duration<double>(after_sleep - last_frame_time).count();
+        
+        frame_count++;
+        if (frame_count % 8 == 0) {  // Log every 8 frames to reduce spam
+            double fps = 1.0 / frame_delta;
+            std::cerr << "[PRODUCER] Frame " << frame.frame_index << ": delta=" << frame_delta*1000 
+                      << "ms (" << fps << "fps), sleep_needed=" << (time_remaining > 0 ? time_remaining*1000 : 0) << "ms" << std::endl;
+        }
+        
+        last_frame_time = after_sleep;
+    }
+
+    std::cerr << "[PRODUCER] Decoded " << frame_count << " frames total, rewinding..." << std::endl;
+    // Give consumers time to read the last frames before the producer loops.
+    // std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    return 0;
+}
+
+// Overload function for spesific frame to get
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame) {
+    while (decoder.read_next_frame(&frame)) {
+        if (frame.frame_index == desired_frame) {
+//             std::cout << "Successfully isolated frame " << desired_frame << "!\n";
+//             std::cout << "Y Plane Size in bytes: " << frame.y_plane.size() << "\n";
+            break; // Stop decoding immediately, we found our frame.
+        } else {
+//             std::cout << "Not this one." << std::endl;
+        }
+    }
+//     std::cout << "decode video done" << std::endl;
+    return 1;
+}
+
+// Function to return the row stride size of a give width
+// This function have duplicated part in various location, notably in shm.cpp and videoDecoder.hpp, but this is the most appropriate place to put it
+// size_t rowStrideSize(uint32_t width) {
+//     return (width * 4 + 63) & ~63ULL;
+// };
+
+// Function to extract video's native height, width, and frame rate.
+// int extractVideoInfo(AVCodecContext* codec_ctx) {
+    
+// }
+=========================================
+ FILE: videoDecoder.hpp (Auto-located)
+=========================================
+// videoDecoder.hpp
+#pragma once
+
+
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
+}
+
+#include "shm.hpp"
+
+// Video header struct
+struct VideoHeader {
+    int width =0;
+    int height;
+    int image_size;
+};
+
+// A struct to hold the exported raw pixel planes
+struct VideoFrameData {
+    int width = 0;
+    int height = 0;
+    int frame_index = 0;
+    double timestamp_seconds = 0.0;
+    
+    // Separate vectors for Y, U, and V memory planes
+    std::vector<uint8_t> y_plane;
+    std::vector<uint8_t> u_plane;
+    std::vector<uint8_t> v_plane;
+};
+
+// Main data struct for producer-
+class VideoDecoder {
+private:
+    AVFormatContext* format_ctx = nullptr;
+    AVCodecContext* codec_ctx = nullptr;
+    AVPacket* packet = nullptr;
+    AVFrame* frame = nullptr;
+    int numberFrame = 0;
+    int video_stream_idx = -1;
+    int frame_counter = 0;
+    bool flushing = false;
+    SwsContext* sws_ctx = nullptr;  // Reuse SWS context for all frames
+
+    uint8_t* shm = nullptr;
+
+    // Helper function to safely copy raw data out of FFmpeg's padded linesizes
+    void copy_plane(const uint8_t* src, int src_linesize, uint8_t* dest, int width, int height) {
+        for (int i = 0; i < height; ++i) {
+            std::copy(src + (i * src_linesize), src + (i * src_linesize) + width, dest + (i * width));
+        }
+    }
+
+    void cleanupSHM() {
+        if (shm && codec_ctx) {
+            size_t stride = (codec_ctx->width * 4 + 63) & ~63ULL;
+            size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
+            size_t image_size = stride * codec_ctx->height;
+            size_t total_mapping_size = header_size + image_size * RING_BUFFER_SLOTS;
+            exitSHM(shm, total_mapping_size);
+            shm = nullptr;
+        }
+        if (sws_ctx) {
+            sws_freeContext(sws_ctx);
+            sws_ctx = nullptr;
+        }
+    }
+
+public:
+
+    VideoDecoder() = default;
+    
+    // Automatically close resources if the object falls out of scope
+    ~VideoDecoder() { 
+        close(); 
+    }
+
+    // Function to convert YUV420P to RGBA
+    int converterNsendSHM(uint64_t frame_counter) {
+        int width = codec_ctx->width;
+        int height = codec_ctx->height;
+        uint8_t* dstData[4] = { nullptr };
+        int dstLinesize[4] = { 0 };
+
+        // Allocate local temporary buffer
+        int data_length = av_image_alloc(dstData, dstLinesize, width, height, AV_PIX_FMT_RGBA, 1);
+        if (data_length < 1) {
+            std::cerr << "Failed to allocate memory" << std::endl;
+            return -1;
+        }
+        
+        if (!sws_ctx) {
+            std::cerr << "SWS context not initialized!" << std::endl;
+            av_freep(&dstData[0]);
+            return -1;
+        }
+
+        // Perform scaling conversion using cached context
+        sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
+        
+        if (!shm) {
+            std::cerr << "SHM pointer is null!" << std::endl;
+            av_freep(&dstData[0]);
+            return -1;
+        }
+        
+        // Put data inside the SHM
+        int slot = frame_counter % RING_BUFFER_SLOTS;
+        writeFrameToSlot(shm, slot, dstData[0], frame_counter);
+
+        // Cleanup
+        av_freep(&dstData[0]);
+
+        return 0;
+    } 
+
+    // Opens file and allocates processing memory
+    // kinda borked
+    bool open(const std::string& filename) {
+        if (avformat_open_input(&format_ctx, filename.c_str(), nullptr, nullptr) < 0) return false;
+        if (avformat_find_stream_info(format_ctx, nullptr) < 0) return false;
+
+        // Codec
+        const AVCodec* codec = nullptr;
+        for (unsigned int i = 0; i < format_ctx->nb_streams; i++) {
+            if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+                video_stream_idx = i;
+                codec = avcodec_find_decoder(format_ctx->streams[i]->codecpar->codec_id);
+                break;
+            }
+        }
+
+        if (video_stream_idx == -1 || !codec) return false;
+
+        codec_ctx = avcodec_alloc_context3(codec);
+        avcodec_parameters_to_context(codec_ctx, format_ctx->streams[video_stream_idx]->codecpar);
+        if (avcodec_open2(codec_ctx, codec, nullptr) < 0) return false;
+
+        packet = av_packet_alloc();
+        frame = av_frame_alloc();
+        frame_counter = 0;
+        numberFrame = format_ctx->streams[video_stream_idx]->nb_frames;
+
+        int width = codec_ctx->width;
+        int height = codec_ctx->height;
+        av_q2d(format_ctx->streams[video_stream_idx]->avg_frame_rate);
+
+        // Create and cache SwsContext for all frames (reused in converterNsendSHM)
+        sws_ctx = sws_getContext(
+            width, height, (AVPixelFormat)codec_ctx->pix_fmt,
+            width, height, AV_PIX_FMT_RGBA,
+            SWS_BILINEAR, nullptr, nullptr, nullptr
+        );
+        if (!sws_ctx) {
+            std::cerr << "Failed to create cached SwsContext" << std::endl;
+            close();
+            return false;
+        }
+
+        // Setup producer SHM with header for metadata
+        shm = createSHM(width, height, "/Hyprlarp-Producer", true);  // true = with header
+        if (!shm) {
+            std::cerr << "Failed to allocate initialization SHM" << std::endl;
+            close(); // Clean up allocated FFmpeg resources
+            return false;
+        }
+        return true;
+    }
+
+    // Pulls the next available frame out of the pipeline
+    bool read_next_frame(VideoFrameData* out_data) {
+        if (!format_ctx || !codec_ctx || !out_data) return false;
+
+        while (true) {
+            int response = 0;
+            
+            if (!flushing) {
+                // Try to read next packet
+                if (av_read_frame(format_ctx, packet) >= 0) {
+                    if (packet->stream_index == video_stream_idx) {
+                        response = avcodec_send_packet(codec_ctx, packet);
+                    }
+                    av_packet_unref(packet);
+                } else {
+                    // EOF reached, start flushing buffered frames
+                    flushing = true;
+                    avcodec_send_packet(codec_ctx, nullptr);  // Send NULL to flush buffer
+                }
+            }
+            
+            // Try to receive frame (works both during decoding and flushing)
+            response = avcodec_receive_frame(codec_ctx, frame);
+            
+            if (response == AVERROR_EOF) {
+                flushing = false;
+                return false;  // No more frames
+            } else if (response == AVERROR(EAGAIN)) {
+                continue;
+            } else if (response < 0) {
+                return false;  // Error decoding
+            }
+
+            frame_counter++;
+            out_data->width = frame->width;
+            out_data->height = frame->height;
+            out_data->frame_index = frame_counter;
+            
+            AVRational time_base = format_ctx->streams[video_stream_idx]->time_base;
+            out_data->timestamp_seconds = frame->pts * av_q2d(time_base);
+
+            // Convert to RGBA and write to SHM
+            converterNsendSHM(frame_counter);
+            
+            av_frame_unref(frame);
+            return true;
+        }
+    }
+
+    // Return the number of frame there is in one video
+    int numberofFrame() const {
+        return this->numberFrame;
+    };
+
+    void close() {
+        cleanupSHM(); // Always clean SHM first
+
+        if (frame) { 
+            av_frame_free(&frame); 
+            frame = nullptr; 
+        }
+        
+        if (packet) {
+            av_packet_free(&packet); 
+            packet = nullptr; 
+        }
+        
+        if (codec_ctx) { 
+            avcodec_free_context(&codec_ctx); 
+            codec_ctx = nullptr; 
+        }
+        
+        if (format_ctx) { 
+            avformat_close_input(&format_ctx); 
+            format_ctx = nullptr; 
+        }
+    }
+
+    bool rewind() {
+        if (!format_ctx || video_stream_idx < 0 || !codec_ctx) return false;
+
+        avcodec_flush_buffers(codec_ctx);
+        av_frame_unref(frame);
+        av_packet_unref(packet);
+
+        int64_t timestamp = 0;
+        int ret = av_seek_frame(format_ctx, video_stream_idx, timestamp, AVSEEK_FLAG_BACKWARD);
+        if (ret < 0) {
+            std::cerr << "VideoDecoder::rewind: failed to seek to start" << std::endl;
+            return false;
+        }
+
+        flushing = false;
+        return true;
+    }
+};
+
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame);
+int decodeVideo(VideoDecoder& decoder, VideoFrameData& frame, int desired_frame);
+=========================================
+ FILE: shm.cpp
+=========================================
+// Function contain the implementation of all SHM
+// shm.cpp
+#include <iostream>
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <fstream>
+#include <sys/stat.h>
+#include <thread>
+#include <unistd.h>
+#include <vector>
+#include <stdio.h>
+#include <atomic>
+
+extern "C" {
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+}
+
+#include "videoDecoder.hpp"
+
+static std::string normalizeSHMName(const std::string& name) {
+    if (name.empty()) {
+        return name;
+    }
+    if (name[0] == '/') {
+        return name;
+    }
+    return std::string("/") + name;
+}
+
+// Function to returen a memory address of the frame of the slot index inputted
+uint8_t* slotPtr(void* shmBase, int slot_index, size_t frame_bytes) {
+    uint8_t* basePtr = static_cast<uint8_t*>(shmBase); // Memory pointer of the main program
+    size_t headerPage = (sizeof(controlHeader) + 4095) / 4096;
+
+    return basePtr + (headerPage * 4096) + (slot_index * frame_bytes);
+}
+
+
+// For main SHM - Testing if pixel data is readable
+int testSHM(int image_size, int width, int height, std::string shmFileName) {
+    shmFileName = normalizeSHMName(shmFileName);
+    int fd = shm_open(shmFileName.c_str(), O_RDONLY, 0644);
+
+    
+    // When testing display SHMs, they have NO header (created with create_header=false)
+    size_t total_size = image_size;  // SHM contains only pixel data
+    
+    
+    void* ptr = mmap(NULL, total_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        std::cerr << "testSHM : Failed to create SHM" << std::endl;
+        close(fd);
+        return -1;
+    }
+    
+    uint8_t* pixelData = static_cast<uint8_t*>(ptr);  // No offset needed for display SHMs
+//     std::cout   << "First pixel byte: " << (int)pixelData[0] << std::endl;
+
+    std::ofstream outFile("test_frame.ppm", std::ios::out | std::ios::binary);
+    if (!outFile) {
+        std::cerr << "Failed to create test PPM file" << std::endl;
+        munmap(ptr, image_size);
+        close(fd);
+        return -1;
+    }
+
+    // Write header file
+    outFile << "P6\n"  << width << " " << height << "\n" << "255\n";
+
+    // Write the data of the file
+    for (int i = 0; i < image_size; i += 4) {
+        outFile.write(reinterpret_cast<char*>(&pixelData[i]), 3);
+    }
+
+    outFile.close();
+    munmap(ptr, total_size);
+
+    close(fd);
+    return 1;
+} 
+
+// Function to open producer SHM / for consumer
+uint8_t* openSHM() {
+    int fd = shm_open(normalizeSHMName("/Hyprlarp-Producer").c_str(), O_RDWR, 0600); // 0600 = read write acces to current
+    if (fd == -1) {
+        std::cerr <<"Error at openSHM : SHM does not exist yet" << std::endl;
+        return nullptr;
+    }
+
+    struct stat dataStat;
+    int fs = fstat(fd, &dataStat);
+    if (fs == -1){
+        std::cerr << "openSHM error : cant do fstat" << std::endl;
+        close(fd);
+        return nullptr;
+    }
+
+    // Find data length : we can use Two-Stage Mapping method in the future
+    if (dataStat.st_size == 0) {
+        std::cerr << "openSHM error : Shared memory file is empty (0 bytes)." << std::endl;
+        close(fd);
+        return nullptr;
+    }
+
+
+
+    void* genericPtr = mmap(NULL, dataStat.st_size, PROT_READ , MAP_SHARED, fd, 0);
+    close(fd);
+
+    if (genericPtr == MAP_FAILED) {
+     std::cerr << "shm error" << std::endl;
+     close(fd);
+     return nullptr;
+    }
+
+    // Check wether the SHM is initialized by the producer
+    // If it isnt initialized, wait until it is
+    controlHeader* header = static_cast<controlHeader*>(genericPtr);
+    while (!header->initialized.load(std::memory_order_acquire)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    return static_cast<uint8_t*>(genericPtr); // returning in uint8_t pointer form
+}
+
+
+// Create SHM
+// NOTE: When create_header=false, creates SHM with ONLY pixel data (for consumer)
+//       When create_header=true, creates SHM with VideoHeader + pixel data (for producer)
+// For Consumer, we must NOT include header in display SHMs
+// Returns pointer to pixel data area, skipping header if present
+uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool create_header) {
+    // Validate inputs
+    if (width <= 0 || height <= 0) {
+        std::cerr << "createSHM: Invalid dimensions - data_length=" << ", width=" << width << ", height=" << height << std::endl;
+        return nullptr;
+    }
+    
+    std::string normalized_name = normalizeSHMName(SHMfilename);
+    shm_unlink(normalized_name.c_str());
+    
+    int fd = shm_open(normalized_name.c_str(), O_CREAT | O_RDWR, 0600); // 0600 = read write acces to current
+    if (fd == -1) {
+        std::cerr <<"Error at createSHM : failed to create/open shm" << std::endl;
+        return nullptr;
+    }
+
+    // Get SHM size
+    size_t shm_size = 0;
+    size_t stride = (width * 4 + 63) & ~63ULL;
+    if (create_header) {
+        size_t frame_size = stride * height;
+        size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
+
+        shm_size = header_size + frame_size * RING_BUFFER_SLOTS;
+    } else {
+        // size_t stride = (width * 4 + 63) & ~63ULL;
+        shm_size = stride * height;
+    }
+    
+    // Change file size of the SHM to the required image size
+    // size_t total_size = (create_header ? sizeof(VideoHeader) : 0) + data_length;
+    // size_t total_size = (create_header ? sizeof(controlHeader) : 0) + data_length;
+    ftruncate(fd, shm_size);
+
+    // Put image file size (default) into the SHM and get the pointer to the SHM
+    void* genericPtr = mmap(NULL, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (genericPtr == MAP_FAILED) {
+        std::cerr << "shm error" << std::endl;
+        close(fd);
+        return nullptr;
+    }
+
+    // Zero-initialize the entire SHM to prevent garbage data
+    memset(genericPtr, 0, shm_size);
+    
+    // For main SHM / producer
+    if (create_header) {
+        // VideoHeader* header = static_cast<VideoHeader*>(genericPtr);
+        controlHeader* header = static_cast<controlHeader*>(genericPtr);
+        header->width = width;
+        header->height = height;
+        header->stride = stride; // Assuming RGBA format
+        header->num_sloth = RING_BUFFER_SLOTS;
+        // header->image_size = data_length;
+        
+        header->initialized.store(true, std::memory_order_release);
+        std::cerr << "createSHM: Wrote header to " << SHMfilename << " - width=" << width  << ", height=" << height << std::endl;
+        
+        // close(fd);
+
+        // Return pointer to pixel data area (skip header)
+        // return static_cast<uint8_t*>(genericPtr) + sizeof(controlHeader);
+    }
+    
+    close(fd);
+
+    // Return generic pointer for both consumer and producer, use slotPtr() to get the correct pixel data pointer for consumers
+    return static_cast<uint8_t*>(genericPtr);
+}
+
+// Function to unlink the SHM
+// Must be call for both consumer and producer
+int exitSHM(void* addr, int data_size) {
+
+    // Un link shm
+    if (addr) {
+        munmap(addr, data_size);
+    }
+    return 1;
+}
+
+// Get image data from the main (producer) SHM (might change implementation due to dynamic video resolution)
+std::vector<int> getImageSHM() {
+    int fd = shm_open("/Hyprlarp-Producer", O_RDONLY, 0644); // Open main SHM
+    if (fd == -1) {
+        std::cerr << "getImageSHM: Could not open SHM (from file descriptor)" << std::endl;
+        return {0, 0, 0, 0};
+    }
+    
+    struct stat dataStat;
+    
+    if (fstat(fd, &dataStat) == -1) {
+        std::cerr << "getImageSHM: fstat failed" << std::endl;
+        close(fd);
+        return {0, 0, 0, 0};
+    }
+    
+    size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
+    // std::cerr << "getImageSHM: /Hyprlarp-Producer size = " << dataStat.st_size << " bytes, controlHeader size = " << header_size << std::endl;
+    
+    if (dataStat.st_size < static_cast<off_t>(header_size)) {
+        std::cerr << "getImageSHM: Shared memory is not initialized or too small" << std::endl;
+        close(fd);
+        return {0, 0, 0, 0};
+    }
+
+    void* headerPtr = mmap(NULL, header_size, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+
+    if (headerPtr == MAP_FAILED) {
+        std::cerr << "getImageSHM: mmap failed" << std::endl;
+        return {0, 0, 0, 0};
+    }
+
+    controlHeader* data_ptr = static_cast<controlHeader*>(headerPtr);
+    int width = data_ptr->width;
+    int height = data_ptr->height;
+    int image_size = data_ptr->stride * data_ptr->height;
+    int videoHeaderSize = header_size;
+    
+    // std::cerr << "getImageSHM: Raw header bytes (first 12): ";
+    // uint8_t* raw = static_cast<uint8_t*>(headerPtr);
+    // for (int i = 0; i < 12 && i < static_cast<int>(header_size); i++) {
+    //     // fprintf(stderr, "%02x ", raw[i]);
+    // }
+
+    // fprintf(stderr, "\n");
+    
+    // std::cerr << "getImageSHM: width=" << width << ", height=" << height << ", image_size=" << image_size << std::endl;
+
+    munmap(headerPtr, header_size);
+    return {width, height, image_size, videoHeaderSize};
+}
+
+// Function to delete the SHM
+int deleteSHM() {
+    shm_unlink(normalizeSHMName("/Hyprlarp-Producer").c_str());
+    return 1;
+};
+
+// Function to put file into SHM
+// Writing directly at offset 0 (no header offset needed)
+int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
+    if (!shmPtr || !data_size) {
+        std::cerr << "putSHM : SHM pointer invalid" << std::endl;
+    }
+
+//     std::cout << "putSHM : pre memcpy" << std::endl;
+
+    // Data written directly at offset 0 (Kitty reads from here)
+    memcpy(shmPtr, data, data_size);
+
+//     std::cout << "putSHM : post memcpy" << std::endl;
+
+    return 1;
+}
+
+// Alternatve to putSHM function
+// Instead of writing to the SHM at offset 0, this function writes to a specific slot in the ring buffer
+// Used for producer to write to a specific slot in the ring buffer
+int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data, int frame_number) {
+    controlHeader* header = reinterpret_cast<controlHeader*>(shmPtr);
+
+    uint8_t* dest = slotPtr(shmPtr, slot_index_target, header->stride * header->height);
+    
+    // change sequence to even to indicate dirty
+    // header->slotMetadata[slot_index_target].sequence.fetch_add(static_cast<uint64_t>(frame_number) * 2ULL, std::memory_order_release); // Mark slot as dirty
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2, std::memory_order_release);
+
+    std::memcpy(dest, frame_data, header->stride * header->height);
+
+    // Change sequence to odd to indicate clean
+    // header->slotMetadata[slot_index_target].sequence.fetch_add(1, std::memory_order_release); // Mark slot as clean
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2 + 1, std::memory_order_release);
+
+
+    // Update the global sequence and write slot index
+    header->global_sequences.store(frame_number, std::memory_order_release);
+    header->write_slot_index.store(slot_index_target, std::memory_order_release);
+
+    return 1;
+}
+
+// Function to read a frame from a specific slot in the ring buffer
+int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer) {
+    controlHeader* header = reinterpret_cast<controlHeader*>(shmPtr);
+
+    int data_size = header->stride * header->height;
+
+    // Get sequence before reading
+    uint64_t seq_before = header->slotMetadata[slot_index_target].sequence.load(std::memory_order_acquire);
+
+    // Check if the slot is dirty (even sequence number)
+    if (seq_before % 2 == 0) {
+        std::cerr << "readFrameFromSlot: Slot " << slot_index_target << " is dirty, skipping read." << std::endl;
+        return -1; // Indicate that the slot is dirty and cannot be read
+    }
+
+    // Get pointer to the slot data
+    uint8_t* slotLocation = slotPtr(shmPtr, slot_index_target, data_size);
+
+    // Copy data to local buffer
+    std::memcpy(local_buffer, slotLocation, data_size);
+
+    // Get sequence after reading
+    uint64_t seq_after = header->slotMetadata[slot_index_target].sequence.load(std::memory_order_acquire);
+
+    // Check if the sequence changed during the read
+    if (seq_before != seq_after) {
+        std::cerr << "readFrameFromSlot: Sequence changed during read for slot " << slot_index_target << ", data may be inconsistent." << std::endl;
+        return -1;
+    }
+
+    return 1; // Successful read
+};
+=========================================
+ FILE: shm.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <atomic>
+#include <vector>
+#include <string>
+
+inline constexpr uint32_t RING_BUFFER_SLOTS = 16;
+
+struct alignas(64) frameSlot {
+    std::atomic<uint64_t> sequence;
+    std::atomic<uint32_t> reader_count;
+    uint32_t _pad[13];
+};
+
+struct alignas(64) controlHeader {
+    uint32_t width;
+    uint32_t height;
+    uint32_t stride;
+    uint32_t num_sloth;
+    std::atomic<uint64_t> global_sequences;
+    std::atomic<uint32_t> write_slot_index;
+    std::atomic<bool> initialized = false;
+    uint32_t _pad[2];
+    frameSlot slotMetadata[RING_BUFFER_SLOTS];
+};
+
+uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool create_header = true);
+uint8_t* openSHM();
+int exitSHM(void* addr, int data_size);
+int putSHM(uint8_t* shmPtr, const void* data, size_t data_size);
+int testSHM(int image_size, int width, int height, std::string shmFileName);
+int deleteSHM();
+std::vector<int> getImageSHM();
+int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data, int frame_number);
+int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer);
+
+
+
+=========================================
+ FILE: gui.cpp
+=========================================
+#include "gui.hpp" // Include the header file
+// gui.cpp
+#include <QApplication>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QFileDialog>
+#include <QScreen>
+#include <QPainter>
+#include <QPen>
+#include <QBrush>
+#include <QCursor>
+#include <QRegion>
+#include <QFont>
+#include <QMouseEvent>
+#include <QMoveEvent>
+#include <QResizeEvent>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include <QDebug>
+#include <QStandardPaths>
+#include <QStringList>
+
+#include <opencv2/opencv.hpp>
+#include <cmath>
+#include <algorithm>
+
+// Utility functions
+QSize getMonitorResolution() {
+    QScreen* screen = QApplication::primaryScreen();
+    if (screen) {
+        QRect geometry = screen->availableGeometry();
+        return QSize(geometry.width(), geometry.height());
+    }
+    return QSize(1920, 1080);
+}
+
+QSize getVideoResolution(const QString& path) {
+    cv::VideoCapture cap(path.toStdString());
+    if (!cap.isOpened()) {
+        qDebug() << "Error: Failed to open video" << path;
+        return QSize(640, 480);
+    }
+    int width  = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
+    int height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+    cap.release();
+    return QSize(width, height);
+}
+
+QString getConfigPath() {
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    return configDir + "/HyprLarp.json";
+}
+
+// VideoArea Implementation
+VideoArea::VideoArea(QSize monitorRatio_, QSize videoRatio_, QWidget* parent)
+    : QWidget(parent),
+      monitorRatio(monitorRatio_),
+      videoRatio(videoRatio_),
+      bgColor(QColor(255, 0, 0, 25)),
+      borderColor(QColor(255, 0, 0)),
+      handleColor(QColor(255, 255, 0)),
+      handleRadius(5),
+      handleRadiusHover(8),
+      dragging(false),
+      resizing(false),
+      currentScale(1.0),
+      realRect(0, 0, 0, 0)
+{
+    setMouseTracking(true);
+}
+
+void VideoArea::updateRealGeometry() {
+    if (!parent()) return;
+    WorkspaceArea* ws = static_cast<WorkspaceArea*>(parent());
+    QRect wsRect = ws->currentWorkspaceRect;
+    int mw = ws->displayRatio.width();
+    int mh = ws->displayRatio.height();
+
+    if (wsRect.width() <= 0 || wsRect.height() <= 0) return;
+
+    QRect vRect = geometry();
+
+    double rx = (vRect.x() - wsRect.x()) / (double)wsRect.width() * mw;
+    double ry = (vRect.y() - wsRect.y()) / (double)wsRect.height() * mh;
+    double rw = vRect.width()  / (double)wsRect.width()  * mw;
+    double rh = vRect.height() / (double)wsRect.height() * mh;
+
+    realRect = QRect((int)std::round(rx), (int)std::round(ry),
+                     (int)std::round(rw), (int)std::round(rh));
+}
+
+QRect VideoArea::getCornerRect(const QString& name) const {
+    QRect r = rect();
+    int size = (!hoveredCorner.isEmpty()) ? handleRadiusHover : handleRadius;
+    if (name == "TL") return QRect(r.topLeft()     - QPoint(size, size),  QSize(size * 2, size * 2));
+    if (name == "TR") return QRect(r.topRight()    - QPoint(-size, size), QSize(size * 2, size * 2));
+    if (name == "BL") return QRect(r.bottomLeft()  - QPoint(size, -size), QSize(size * 2, size * 2));
+    if (name == "BR") return QRect(r.bottomRight() - QPoint(-size, -size),QSize(size * 2, size * 2));
+    return QRect();
+}
+
+QPoint VideoArea::getCornerCenter(const QString& name) const {
+    QRect r = rect();
+    if (name == "TL") return r.topLeft();
+    if (name == "TR") return r.topRight();
+    if (name == "BL") return r.bottomLeft();
+    if (name == "BR") return r.bottomRight();
+    return QPoint();
+}
+
+QString VideoArea::checkCornerHover(const QPoint& pos) const {
+    QStringList corners = {"TL", "TR", "BL", "BR"};
+    for (const QString& name : corners) {
+        QPoint center = getCornerCenter(name);
+        QPoint diff = pos - center;
+        int dist = diff.manhattanLength();
+        if (dist <= handleRadiusHover * 1.5) {
+            return name;
+        }
+    }
+    return QString();
+}
+
+void VideoArea::paintEvent(QPaintEvent*) {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.fillRect(rect(), QBrush(bgColor));
+    painter.setPen(QPen(borderColor, 2));
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+
+    QStringList corners = {"TL", "TR", "BL", "BR"};
+    for (const QString& name : corners) {
+        int radius = handleRadius;
+        if (hoveredCorner == name) {
+            radius = handleRadiusHover;
+        }
+        QPoint center = getCornerCenter(name);
+        painter.setBrush(QBrush(handleColor));
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(center, radius, radius);
+    }
+}
+
+void VideoArea::mouseMoveEvent(QMouseEvent* event) {
+    QPoint pos = event->position().toPoint();
+
+    if (resizing && !activeCorner.isEmpty()) {
+        performResize(pos);
+        if (activeCorner == "TL" || activeCorner == "BR") {
+            setCursor(Qt::SizeFDiagCursor);
+        } else {
+            setCursor(Qt::SizeBDiagCursor);
+        }
+    } else if (dragging) {
+        setCursor(Qt::ClosedHandCursor);
+        QPoint globalPos = event->globalPosition().toPoint();
+        QPoint delta = globalPos - startPos;
+        move(widgetStartGeo.topLeft() + delta);
+    } else {
+        QString corner = checkCornerHover(pos);
+        if (corner != hoveredCorner) {
+            hoveredCorner = corner;
+            update();
+        }
+
+        if (!corner.isEmpty()) {
+            if (corner == "TL" || corner == "BR") {
+                setCursor(Qt::SizeFDiagCursor);
+            } else {
+                setCursor(Qt::SizeBDiagCursor);
+            }
+        } else {
+            setCursor(Qt::OpenHandCursor);
+        }
+    }
+}
+
+void VideoArea::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        QPoint pos = event->position().toPoint();
+        QString corner = checkCornerHover(pos);
+
+        if (!corner.isEmpty()) {
+            resizing = true;
+            activeCorner = corner;
+            startPos = event->globalPosition().toPoint();
+            widgetStartGeo = geometry();
+            grabMouse();
+        } else {
+            dragging = true;
+            startPos = event->globalPosition().toPoint();
+            widgetStartGeo = geometry();
+            grabMouse();
+            setCursor(Qt::ClosedHandCursor);
+        }
+
+        update();
+    }
+}
+
+void VideoArea::mouseReleaseEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        releaseMouse();
+        dragging = false;
+        resizing = false;
+        activeCorner.clear();
+
+        updateRealGeometry();
+
+        if (parent()) {
+            static_cast<WorkspaceArea*>(parent())->updateDebugInfo();
+        }
+        update();
+    }
+}
+
+void VideoArea::performResize(const QPoint& currentPos) {
+    QRect currentGeo = geometry();
+    QPoint center = currentGeo.center();
+
+    QPoint mousePos = mapToParent(currentPos);
+    int dx = std::abs(mousePos.x() - center.x());
+    int dy = std::abs(mousePos.y() - center.y());
+
+    int vw = videoRatio.width();
+    int vh = videoRatio.height();
+
+    int w_from_dx = dx * 2;
+    int h_from_dy = dy * 2;
+
+    int new_w = 0, new_h = 0;
+    if ((double)w_from_dx * vh >= (double)h_from_dy * vw) {
+        new_w = w_from_dx;
+        new_h = (int)(new_w * (double)vh / vw);
+    } else {
+        new_h = h_from_dy;
+        new_w = (int)(new_h * (double)vw / vh);
+    }
+
+    new_w = std::max(20, new_w);
+    new_h = std::max(20, new_h);
+
+    int baseW = 0;
+    if (parent()) {
+        baseW = static_cast<WorkspaceArea*>(parent())->videoBaseSize.width();
+    }
+    if (baseW > 0) {
+        currentScale = new_w / (double)baseW;
+    }
+
+    QRect newGeo(0, 0, new_w, new_h);
+    newGeo.moveCenter(center);
+    setGeometry(newGeo);
+
+    updateRealGeometry();
+
+    if (parent()) {
+        static_cast<WorkspaceArea*>(parent())->updateDebugInfo();
+    }
+}
+
+void VideoArea::moveEvent(QMoveEvent*) {
+    if (parent()) {
+        static_cast<WorkspaceArea*>(parent())->updateVideoMask();
+    }
+}
+
+void VideoArea::resizeEvent(QResizeEvent*) {
+    if (parent()) {
+        static_cast<WorkspaceArea*>(parent())->updateVideoMask();
+    }
+}
+
+void VideoArea::resetGeometry(const QRect& rect) {
+    setGeometry(rect);
+    currentScale = 1.0;
+    updateRealGeometry();
+    update();
+}
+
+// WorkspaceArea Implementation
+WorkspaceArea::WorkspaceArea(QSize displayRatio_, QSize videoRatio_, QWidget* parent)
+    : QWidget(parent),
+      displayRatio(displayRatio_),
+      videoRatio(videoRatio_),
+      videoArea(nullptr),
+      debugLabel(nullptr),
+      noVideoLabel(nullptr),
+      currentWorkspaceRect(0, 0, 0, 0),
+      videoBaseSize(0, 0)
+{
+    setMinimumSize(200, 150);
+}
+
+void WorkspaceArea::resizeEvent(QResizeEvent*) {
+    updateLayout();
+}
+
+void WorkspaceArea::updateLayout() {
+    int parentW = width();
+    int parentH = height();
+
+    if (parentW <= 0 || parentH <= 0) return;
+
+    int mw = displayRatio.width();
+    int mh = displayRatio.height();
+    double monitorAspect = (double)mw / mh;
+
+    double maxW = parentW * 0.9;
+    double maxH = parentH * 0.9;
+
+    int targetW = (int)maxW;
+    int targetH = (int)(targetW / monitorAspect);
+
+    if (targetH > maxH) {
+        targetH = (int)maxH;
+        targetW = (int)(targetH * monitorAspect);
+    }
+
+    targetW = std::max(1, targetW);
+    targetH = std::max(1, targetH);
+
+    currentWorkspaceRect = QRect(0, 0, targetW, targetH);
+    currentWorkspaceRect.moveCenter(rect().center());
+
+    int vw = videoRatio.width();
+    int vh = videoRatio.height();
+    double scale = (double)targetW / mw;
+
+    int baseW = (int)(vw * scale);
+    int baseH = (int)(vh * scale);
+    videoBaseSize = QSize(baseW, baseH);
+
+    if (noVideoLabel) {
+        noVideoLabel->setGeometry(currentWorkspaceRect);
+    }
+
+    if (!videoArea) {
+        update();
+        return;
+    }
+
+    if (videoArea->realRect.width() > 0) {
+        QRect ws = currentWorkspaceRect;
+        QRect realR = videoArea->realRect;
+
+        int wx = (int)((realR.x() / (double)mw) * ws.width() + ws.x());
+        int wy = (int)((realR.y() / (double)mh) * ws.height() + ws.y());
+        int ww = (int)((realR.width()  / (double)mw) * ws.width());
+        int wh = (int)((realR.height() / (double)mh) * ws.height());
+
+        QRect vRect(wx, wy, std::max(20, ww), std::max(20, wh));
+        videoArea->setGeometry(vRect);
+
+        if (vw > 0) {
+            videoArea->currentScale = realR.width() / (double)vw;
+        }
+    } else {
+        QRect videoGeo(0, 0, baseW, baseH);
+        videoGeo.moveCenter(currentWorkspaceRect.center());
+        videoArea->setGeometry(videoGeo);
+        videoArea->currentScale = 1.0;
+        videoArea->updateRealGeometry();
+    }
+
+    updateDebugInfo();
+    updateVideoMask();
+}
+
+void WorkspaceArea::updateVideoMask() {
+    if (!videoArea) return;
+
+    QRect videoRect = videoArea->geometry();
+    QRect intersected = videoRect.intersected(currentWorkspaceRect);
+
+    if (intersected.width() <= 0 || intersected.height() <= 0) {
+        videoArea->setMask(QRegion(0, 0, 0, 0));
+    } else {
+        int localX = intersected.x() - videoRect.x();
+        int localY = intersected.y() - videoRect.y();
+        QRect localRect(localX, localY, intersected.width(), intersected.height());
+        videoArea->setMask(QRegion(localRect));
+    }
+}
+
+void WorkspaceArea::resetVideo() {
+    if (videoArea) {
+        videoArea->realRect = QRect(0, 0, 0, 0);
+        updateLayout();
+    }
+}
+
+void WorkspaceArea::updateDebugInfo() {
+    if (debugLabel && videoArea) {
+        int vw = videoRatio.width();
+        int vh = videoRatio.height();
+        double scale = videoArea->currentScale;
+        QString msg = QString("Monitor: %1x%2\nVideo: %3x%4\nScale: x%5")
+            .arg(displayRatio.width()).arg(displayRatio.height())
+            .arg(vw).arg(vh)
+            .arg(scale, 0, 'f', 2);
+        debugLabel->setText(msg);
+        debugLabel->adjustSize();
+        debugLabel->move(5, height() - debugLabel->height() - 5);
+    }
+}
+
+void WorkspaceArea::paintEvent(QPaintEvent*) {
+    QPainter painter(this);
+    painter.fillRect(currentWorkspaceRect, QBrush(QColor(0, 255, 0, 20)));
+    painter.setPen(QPen(QColor(0, 255, 0), 2));
+    painter.drawRect(currentWorkspaceRect);
+}
+
+void WorkspaceArea::initUi() {
+    noVideoLabel = new QLabel("No Video Loaded\n\nClick 'Open Video' to select a file", this);
+    noVideoLabel->setAlignment(Qt::AlignCenter);
+    noVideoLabel->setStyleSheet(
+        "QLabel { color: #ffffff; font-size: 18px; font-weight: bold; "
+        "background-color: rgba(0, 0, 0, 120); border-radius: 10px; padding: 20px; }"
+    );
+    noVideoLabel->setVisible(false);
+
+    debugLabel = new QLabel(this);
+    debugLabel->setStyleSheet("background-color: rgba(0,0,0,180); color: white; padding: 2px;");
+
+    if (videoRatio != QSize(0, 0)) {
+        createVideoArea();
+    }
+
+    updateLayout();
+}
+
+void WorkspaceArea::createVideoArea() {
+    if (videoArea) return;
+
+    videoArea = new VideoArea(displayRatio, videoRatio, this);
+    videoArea->setCursor(Qt::OpenHandCursor);
+    videoArea->show();
+
+    if (!pendingConfigCorners.isEmpty()) {
+        QPoint tl = pendingConfigCorners[0];
+        QPoint br = pendingConfigCorners[3];
+        int w = br.x() - tl.x();
+        int h = br.y() - tl.y();
+        videoArea->realRect = QRect(tl.x(), tl.y(), w, h);
+        pendingConfigCorners.clear();
+    }
+
+    if (noVideoLabel) {
+        noVideoLabel->setVisible(false);
+    }
+}
+
+void WorkspaceArea::saveConfig(const QString& videoPath) {
+    if (!videoArea) {
+        qDebug() << "Cannot save: No video area loaded.";
+        return;
+    }
+
+    videoArea->updateRealGeometry();
+    QRect realR = videoArea->realRect;
+
+    QJsonArray tl; tl.append(realR.x());                       tl.append(realR.y());
+    QJsonArray tr; tr.append(realR.x() + realR.width());       tr.append(realR.y());
+    QJsonArray bl; bl.append(realR.x());                       bl.append(realR.y() + realR.height());
+    QJsonArray br; br.append(realR.x() + realR.width());       br.append(realR.y() + realR.height());
+
+    QJsonObject config;
+    config["videoPath"] = videoPath;
+    QJsonArray cornerArray;
+    cornerArray.append(tl);
+    cornerArray.append(tr);
+    cornerArray.append(bl);
+    cornerArray.append(br);
+    config["cornerLocation"] = cornerArray;
+
+    QString configPath = getConfigPath();
+    QDir configDir = QFileInfo(configPath).absoluteDir();
+    if (!configDir.exists()) {
+        configDir.mkpath(".");
+    }
+
+    QFile file(configPath);
+    if (file.open(QIODevice::WriteOnly)) {
+        QJsonDocument doc(config);
+        file.write(doc.toJson());
+        qDebug() << "Config saved to" << configPath;
+    }
+}
+
+// MainWindow Implementation
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+    setWindowTitle("Video Layout Tool (Resizable)");
+    resize(800, 600);
+
+    monitorRatio = getMonitorResolution();
+    videoRatio = QSize(0, 0);
+
+    loadConfig();
+
+    qDebug() << "Monitor:" << monitorRatio.width() << "x" << monitorRatio.height();
+    if (videoRatio != QSize(0, 0)) {
+        qDebug() << "Loaded Video:" << videoRatio.width() << "x" << videoRatio.height();
+    }
+
+    QWidget* centralWidget = new QWidget(this);
+    setCentralWidget(centralWidget);
+    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(10);
+
+    workspace = new WorkspaceArea(monitorRatio, videoRatio);
+    mainLayout->addWidget(workspace);
+
+    if (!configCorners.isEmpty()) {
+        workspace->pendingConfigCorners = configCorners;
+    }
+
+    QHBoxLayout* controlsLayout = new QHBoxLayout();
+
+    openBtn = new QPushButton("Open Video");
+    QObject::connect(openBtn, &QPushButton::clicked, [this]() { this->openVideo(); });
+    controlsLayout->addWidget(openBtn);
+
+    saveBtn = new QPushButton("Save Config");
+    QObject::connect(saveBtn, &QPushButton::clicked, [this]() { this->saveConfig(); });
+    controlsLayout->addWidget(saveBtn);
+
+    resetBtn = new QPushButton("Reset Position & Size");
+    QObject::connect(resetBtn, &QPushButton::clicked, [this]() { this->workspace->resetVideo(); });
+    controlsLayout->addStretch();
+    controlsLayout->addWidget(resetBtn);
+
+    mainLayout->addLayout(controlsLayout);
+
+    workspace->initUi();
+
+    if (videoPath.isEmpty()) {
+        workspace->noVideoLabel->setVisible(true);
+    }
+}
+
+void MainWindow::loadConfig() {
+    QString configPath = getConfigPath();
+    QFile file(configPath);
+    if (file.exists()) {
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (doc.isObject()) {
+                QJsonObject config = doc.object();
+
+                QString vPath = config.value("videoPath").toString();
+                QJsonArray cornersArray = config.value("cornerLocation").toArray();
+
+                if (!vPath.isEmpty() && QFile::exists(vPath) && cornersArray.size() == 4) {
+                    videoPath = vPath;
+                    videoRatio = getVideoResolution(vPath);
+                    configCorners.clear();
+                    for (int i = 0; i < 4; i++) {
+                        QJsonArray c = cornersArray.at(i).toArray();
+                        configCorners.append(QPoint(c.at(0).toInt(), c.at(1).toInt()));
+                    }
+                    qDebug() << "Loaded config from" << configPath;
+                } else {
+                    qDebug() << "Config ignored: Video file missing or corners invalid.";
+                }
+            } else {
+                qDebug() << "Error reading config: Invalid JSON";
+            }
+        }
+    }
+}
+
+void MainWindow::openVideo() {
+    QString filepath = QFileDialog::getOpenFileName(
+        this, "Open Video File", "", "Video Files (*.mp4 *.avi *.mkv *.mov)");
+    if (!filepath.isEmpty()) {
+        videoPath = filepath;
+        videoRatio = getVideoResolution(filepath);
+
+        workspace->videoRatio = videoRatio;
+
+        if (!workspace->videoArea) {
+            workspace->createVideoArea();
+        } else {
+            workspace->videoArea->videoRatio = videoRatio;
+            workspace->videoArea->realRect = QRect(0, 0, 0, 0);
+        }
+
+        workspace->updateLayout();
+        workspace->videoArea->update();
+    }
+}
+
+void MainWindow::saveConfig() {
+    if (videoPath.isEmpty() || !workspace->videoArea) {
+        qDebug() << "No video loaded to save.";
+        return;
+    }
+    workspace->saveConfig(videoPath);
+}
+
+// Main setup
+int setup(int argc, char* argv[]) {
+    QApplication app(argc, argv);
+    MainWindow window;
+    window.show();
+    return app.exec();
+}
+=========================================
+ FILE: gui.hpp (Auto-located)
+=========================================
+#pragma once
+#ifndef VIDEOLAYOUTTOOL_HPP
+#define VIDEOLAYOUTTOOL_HPP
+
+#include <QWidget>
+#include <QMainWindow>
+#include <QLabel>
+#include <QPushButton>
+#include <QRect>
+#include <QPoint>
+#include <QSize>
+#include <QString>
+#include <QVector>
+#include <QColor>
+
+// Forward declarations
+class WorkspaceArea;
+class VideoArea;
+
+// Utility functions (declarations)
+QSize getMonitorResolution();
+QSize getVideoResolution(const QString& path);
+QString getConfigPath();
+
+class VideoArea : public QWidget
+{
+    Q_OBJECT
+
+public:
+    VideoArea(QSize monitorRatio, QSize videoRatio, QWidget* parent = nullptr);
+
+    void updateRealGeometry();
+    QRect getCornerRect(const QString& name) const;
+    QPoint getCornerCenter(const QString& name) const;
+    QString checkCornerHover(const QPoint& pos) const;
+    void performResize(const QPoint& currentPos);
+    void resetGeometry(const QRect& rect);
+
+    // Public members (exposed for WorkspaceArea)
+    QSize monitorRatio;
+    QSize videoRatio;
+    QColor bgColor;
+    QColor borderColor;
+    QColor handleColor;
+    int handleRadius;
+    int handleRadiusHover;
+    bool dragging;
+    bool resizing;
+    QString activeCorner;
+    QPoint startPos;
+    QRect widgetStartGeo;
+    double currentScale;
+    QRect realRect;
+    QString hoveredCorner;
+
+protected:
+    void paintEvent(QPaintEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void moveEvent(QMoveEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+};
+
+class WorkspaceArea : public QWidget
+{
+    Q_OBJECT
+
+public:
+    WorkspaceArea(QSize displayRatio, QSize videoRatio, QWidget* parent = nullptr);
+
+    void updateLayout();
+    void updateVideoMask();
+    void resetVideo();
+    void updateDebugInfo();
+    void initUi();
+    void createVideoArea();
+    void saveConfig(const QString& videoPath);
+
+    // Public members
+    QSize displayRatio;
+    QSize videoRatio;
+    VideoArea* videoArea;
+    QLabel* debugLabel;
+    QLabel* noVideoLabel;
+    QRect currentWorkspaceRect;
+    QSize videoBaseSize;
+    QVector<QPoint> pendingConfigCorners;
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
+};
+
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
+
+public:
+    MainWindow(QWidget* parent = nullptr);
+
+    void loadConfig();
+    void openVideo();
+    void saveConfig();
+
+    // Public members
+    QSize monitorRatio;
+    QString videoPath;
+    QSize videoRatio;
+    QVector<QPoint> configCorners;
+    WorkspaceArea* workspace;
+    QPushButton* openBtn;
+    QPushButton* saveBtn;
+    QPushButton* resetBtn;
+};
+
+int setup(int argc, char* argv[]);
+
+#endif // VIDEOLAYOUTTOOL_HPP
+=========================================
+ FILE: consumer.cpp
+=========================================
+// consumer.cpp
+#include <thread>
+#include <iostream>
+#include <chrono>
+#include "consumer.hpp"
+#include "shm.hpp"
+#include <csignal>
+#include <unistd.h> // for getpid()
+
+// Global PID so the signal handler can access it
+static pid_t g_consumer_pid = 0;
+
+// Handle signals to ensure the cursor is shown again and SHM is cleaned up
+static void handle_signal(int) {
+    std::cout << "\033[?25h" << std::flush; // Show cursor again
+    
+    // Clean up the consumer-specific SHM
+    if (g_consumer_pid > 0) {
+        std::string shmName = "/HyprLarp-Consumer-" + std::to_string(g_consumer_pid);
+        shm_unlink(shmName.c_str());
+    }
+    _exit(1);
+}
+
+// Main entries toward consumer
+int mainConsumer() {
+    std::signal(SIGINT, handle_signal);
+    std::signal(SIGTERM, handle_signal);
+
+    g_consumer_pid = FindTerminalPID();
+
+    consumer cons;
+
+    // Hide cursor
+    std::cout << "\033[?25l" << std::flush;
+
+    // Clean the terminal
+    std::cout << "\033[2J\033[H" << std::flush;
+
+    // Wait for producer and layout to be ready 
+    while (!cons.init()) {
+        static int wait_count = 0;
+        if (++wait_count % 20 == 0)   // print every ~1 second
+            std::cerr << "Waiting for producer and layout...\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    while (true) {
+        int result = cons.renderFrame();
+        if (result == 1) {
+            // Let Kitty finish reading the previous transmission SHM.
+            std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        } else if (result == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+
+    // Show cursor again
+    std::cout << "\033[?25h" << std::flush;
+    return 0;
+}
+=========================================
+ FILE: consumer.hpp (Auto-located)
+=========================================
+// File contain the implementation in the client/consumer which is the terminal
+// consumer.hpp
+#pragma once
+
+#include <iostream>
+#include "DataType.hpp"
+#include "shm.hpp"
+#include <vector>
+#include "renderer.hpp"
+#include "shm.hpp"
+extern "C" {
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+}
+#include "base64converter.hpp"
+#include "layoutSHM.hpp"
+#include "checkTerminal.hpp"
+#include "consumerLayout.hpp"
+#include <sys/ioctl.h>
+#include <fstream>
+
+
+class consumer
+{
+private:
+    std::string BaseSHMName;
+    std::string pendingKittyUnlink;
+    LayoutRender layoutRender;
+    ViewportState viewPort;
+
+    // test debug
+    std::string kittySHMName;          // e.g. "/HyprLarp-Consumer-<PID>"
+    std::string kittyB64Name;          // base64 of above
+    uint8_t*   kittySHMPtr = nullptr;  // mapped address
+    size_t     kittySHMSize = 0;       // same as image_size
+
+
+    uint8_t* ProducerSHMPtr = nullptr; // ptr to main producer shm file
+    uint8_t* shmPtr = nullptr; // pointer to the shm of the producer 
+    std::string SHMfileName;
+    int width = 0;
+    int height = 0;
+    int image_size = 0;
+    int pid = 0;
+    int videoHeaderSize = 0;
+    uint64_t last_sequence = static_cast<uint64_t>(-1);
+    
+    // Debug tracking
+    bool debug_mode = false;
+    uint32_t last_slot = 0;
+    int poll_retries = 0;
+    std::chrono::high_resolution_clock::time_point frame_start_time;
+    std::chrono::high_resolution_clock::time_point last_frame_time;
+    std::vector<uint8_t> frame_data_cache;  // Pre-allocated frame buffer
+    // bool layoutReady = false;
+
+
+public:
+    int frame = 0;
+
+    // test debug
+    pid_t terminalPid = 0;
+    bool refreshLayout() {
+        return computeConsumerLayout(terminalPid, width, height, layoutRender, viewPort);
+    }
+
+    // Enable debug mode (shows timing stats instead of video)
+    void enableDebugMode() { debug_mode = true; }
+    void disableDebugMode() { debug_mode = false; }
+
+    // Create unique filename for SHM to differentiate SHM file from different frame and different terminal
+    int setupSHMfileName(int currectFrame) {
+        // pid = getpid();
+        pid = FindTerminalPID();
+        frame = currectFrame;
+        std::string fileNameSHM = "HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
+        SHMfileName = fileNameSHM;
+//         std::cout << "setupSHMfileName : " << SHMfileName << std::endl;
+
+        return 1;
+    }
+
+    // Function to create the SHM recuire each frame
+    int setupSHM() {
+        if (shmPtr) {
+            exitSHM(shmPtr, static_cast<size_t>(image_size));
+            shmPtr = nullptr;
+        }
+
+//         std::cout << "pre setupSHM : " << SHMfileName  << std::endl;
+        shmPtr = createSHM(width, height, SHMfileName, false);
+//         std::cout << "post setupSHM : " << SHMfileName << std::endl;
+
+        return 1;
+    }
+
+    // Function to read the SHM from the producer and put it into the consumer's SHM
+    int populateSHM() {
+        if (!ProducerSHMPtr) {
+            std::cerr << "populateSHM: Producer SHM pointer is null" << std::endl;
+            return -1;
+        }
+
+        frame_start_time = std::chrono::high_resolution_clock::now();
+        poll_retries = 0;
+        controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
+        while (true) {
+            uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
+            if (seq == last_sequence) {
+                poll_retries++;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
+                continue;
+            }
+
+            uint32_t slot_index = header->write_slot_index.load(std::memory_order_acquire);
+            uint64_t seq_check = header->global_sequences.load(std::memory_order_acquire);
+            if (seq != seq_check) {
+                poll_retries++;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
+                continue;
+            }
+
+            if (static_cast<int>(slot_index) < 0 || slot_index >= header->num_sloth) {
+                std::cerr << "populateSHM: invalid producer slot index " << slot_index << std::endl;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
+                continue;
+            }
+
+            // Pre-allocate frame buffer on first use
+            if (frame_data_cache.empty()) {
+                frame_data_cache.resize(image_size);
+            }
+
+            if (readFrameFromSlot(ProducerSHMPtr, slot_index, frame_data_cache.data()) == -1) {
+                poll_retries++;
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
+                continue;
+            }
+
+            if (putSHM(shmPtr, frame_data_cache.data(), image_size) == -1) {
+                std::cerr << "populateSHM: cant put data into the SHM" << std::endl;
+                return -1;
+            }
+
+            last_slot = slot_index;
+            last_sequence = seq;
+            return 1;
+        }
+    }
+
+    // Function to display the image of the SHM
+    // deprecated
+//     int displayImage() {
+//         if (width == 0 || height == 0) {
+//             std::cerr << "dispalyImage : unvalid width and height" << std::endl;
+//             return -1;
+//         }
+
+//         // Check SHM
+//         std::string real_path = std::string("/dev/shm/") + SHMfileName;
+//         if (std::filesystem::exists(real_path)) {
+// //             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
+//         } else {
+// //             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
+//             // std::cerr << "consumer"
+//             throw std::runtime_error("consumer displayImage : Failed to find corespond SHMfile");
+//         }
+
+//         escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
+
+//         return 1;
+//     }
+
+    // use this instead
+    int renderFrame() {
+        // Refresh layout every 10 frames (optional, but good for responsiveness)
+        static int frameCount = 0;
+        if (++frameCount % 10 == 0)
+            refreshLayout();
+
+        // --- Frame capture (simple, lock‑free) ---
+        controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
+        if (!header) return 0;
+
+        // Try to grab the latest frame
+        uint64_t seq = header->global_sequences.load(std::memory_order_acquire);
+        if (seq == last_sequence) return 0;   // no new frame
+
+        uint32_t slot = header->write_slot_index.load(std::memory_order_acquire);
+        // Re‑read sequence to ensure slot wasn't updated during our read
+        if (header->global_sequences.load(std::memory_order_acquire) != seq) return 0;
+        if (slot >= header->num_sloth) return 0;
+
+        // Read the frame data directly into our persistent SHM
+        if (readFrameFromSlot(ProducerSHMPtr, slot, kittySHMPtr) == -1) {
+            std::cerr << "renderFrame: failed to read frame from slot" << std::endl;
+            return -1;
+        }
+
+        last_sequence = seq;
+
+        // --- Copy only the visible slice? Actually, we can let Kitty do the cropping,
+        // because the escape sequence already specifies x,y,w,h. So the entire frame
+        // is already in the SHM, and Kitty will only display the crop area.
+        // No extra memcpy needed – that's the beauty of `t=s`.
+
+        // --- Send escape sequence with persistent SHM name and `d=a` ---
+        if (viewPort.isRender) {
+            escSequence(width, height, kittyB64Name, layoutRender, viewPort);
+        }
+
+        return 1;
+    }
+
+
+    // Debug mode: display frame timing stats while showing video
+    int displayDebugStats() {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto frame_duration = std::chrono::duration<double>(now - frame_start_time).count();
+        auto delta_from_last = last_frame_time.time_since_epoch().count() == 0 ? 0.0 : 
+                               std::chrono::duration<double>(now - last_frame_time).count();
+        
+        // Print debug stats to stderr (doesn't interfere with video on stdout)
+        // std::cerr << "[CONSUMER] Seq=" << last_sequence 
+        //           << " Slot=" << last_slot 
+        //           << " Polls=" << poll_retries 
+        //           << " ReadTime=" << frame_duration*1000 << "ms"
+        //           << " Delta=" << delta_from_last*1000 << "ms" << std::endl;
+        
+        last_frame_time = now;
+        return 1;
+    }
+
+    // Get metadata of the file
+    int getImageData() {
+        std::vector<int> data = getImageSHM();
+        
+        // Validate returned data
+        if (data.size() != 4) {
+            std::cerr << "getImageData: Invalid return vector size: " << data.size() << std::endl;
+            return -1;
+        }
+        
+        width = data[0];
+        height = data[1];
+        image_size = data[2];
+        videoHeaderSize = data[3];
+        
+        // Check for valid dimensions
+        if (width <= 0 || height <= 0 || image_size <= 0) {
+            std::cerr << "getImageData: Invalid video dimensions - width=" << width 
+                      << ", height=" << height << ", image_size=" << image_size << std::endl;
+            std::cerr << "getImageData: Producer SHM (/HyprLarp-Producer) not ready. Start producer first." << std::endl;
+            width = height = image_size = videoHeaderSize = 0;
+            return -1;
+        }
+
+        return 1;
+    }
+
+    // Class constructor
+    // act just for nulling value, use init function for gathering initial data
+    consumer() {
+        ProducerSHMPtr = nullptr;
+        shmPtr = nullptr;
+        width = height = image_size = 0;
+        last_sequence = static_cast<uint64_t>(-1);
+    }
+
+    ~consumer() {
+        // Producer SHM cleanup (existing code)
+        if (ProducerSHMPtr) {
+            size_t total_mapped_size = static_cast<size_t>(videoHeaderSize) + static_cast<size_t>(image_size) * RING_BUFFER_SLOTS;
+            exitSHM(ProducerSHMPtr, total_mapped_size);
+            ProducerSHMPtr = nullptr;
+        }
+
+        // Persistent Kitty SHM cleanup
+        if (kittySHMPtr) {
+            munmap(kittySHMPtr, kittySHMSize);
+            shm_unlink(("/" + kittySHMName).c_str());
+            kittySHMPtr = nullptr;
+        }
+
+        // (No more pendingKittyUnlink, etc.)
+    }
+
+    bool fetchLayout() {
+        // if (width <= 0 || height <= 0) {
+        //     return false;
+        // }
+
+        // static auto lastUpdate = std::chrono::steady_clock::time_point::min();
+        // auto now = std::chrono::steady_clock::now();
+        // if (layoutReady && lastUpdate != std::chrono::steady_clock::time_point::min()
+        //     && now - lastUpdate < std::chrono::milliseconds(200)) {
+        //     return true;
+        // }
+
+        // pid_t myPid = FindTerminalPID();
+        // if (myPid <= 0) {
+        //     std::cerr << "fetchLayout: could not find terminal PID\n";
+        //     return false;
+        // }
+
+        // if (!computeConsumerLayout(myPid, width, height, layoutRender, viewPort)) {
+        //     return false;
+        // }
+
+        // layoutReady = true;
+        // lastUpdate = now;
+
+        // std::ofstream logFile("/tmp/layout.log", std::ios_base::app);
+        // if (logFile.is_open()) {
+        //     logFile << "fetchLayout(local): x=" << layoutRender.x << " y=" << layoutRender.y
+        //             << " w=" << layoutRender.w << " h=" << layoutRender.h
+        //             << " cols=" << layoutRender.disp_cols << " rows=" << layoutRender.disp_rows
+        //             << " cursor=" << layoutRender.cursor_col << "," << layoutRender.cursor_row
+        //             << " sub=" << layoutRender.sub_offset_x << "," << layoutRender.sub_offset_y
+        //             << " pid=" << myPid << std::endl;
+        //     logFile.close();
+        // }
+
+        // return true;
+
+        // debug test
+        return computeConsumerLayout(FindTerminalPID(), width, height, layoutRender, viewPort);
+    }
+
+    // Function to setup the class
+    bool init() {
+        // 1. Get video metadata from producer SHM header
+        if (getImageData() != 1) return false;   // populates width, height, image_size, videoHeaderSize
+
+        // 2. Open the producer ring buffer (read‑only)
+        ProducerSHMPtr = openSHM();               // your existing function
+        if (!ProducerSHMPtr) return false;
+
+        // 3. Create the persistent Kitty SHM (once)
+        kittySHMName = "HyprLarp-Consumer-" + std::to_string(getpid());
+        // Note: getpid() is fine here because this SHM is owned by the consumer process,
+        // not tied to the terminal window. The layout computation uses FindTerminalPID().
+        kittyB64Name = base64Converter(kittySHMName);
+
+        // int fd = shm_open(("/" + kittySHMName).c_str(), O_CREAT | O_RDWR, 0600);
+        int fd = shm_open(kittySHMName.c_str(), O_CREAT | O_RDWR, 0600);
+        if (fd == -1) {
+            std::cerr << "consumer::init: shm_open failed for " << kittySHMName << std::endl;
+            return false;
+        }
+        if (ftruncate(fd, image_size) == -1) {
+            std::cerr << "consumer::init: ftruncate failed" << std::endl;
+            close(fd);
+            return false;
+        }
+        kittySHMPtr = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        close(fd);
+        if (kittySHMPtr == MAP_FAILED) {
+            std::cerr << "consumer::init: mmap failed" << std::endl;
+            return false;
+        }
+        kittySHMSize = image_size;
+
+        // 4. Get initial layout using the correct terminal PID
+        terminalPid = FindTerminalPID();          // the kitty window PID
+        return refreshLayout();                   // calls computeConsumerLayout
+    }
+};
+
+int mainConsumer();
+=========================================
+ FILE: renderer.cpp
+=========================================
+// renderer.cpp
+#include <iostream>
+#include <unistd.h>
+#include <string>
+#include <cstdio>
+
+#include "base64converter.hpp"
+#include <filesystem>
+#include "DataType.hpp"
+#include <cstdio>
+
+// Function to display to write the escape sequences
+int escSequence(int width, int height, std::string& imageSHM, const LayoutRender layoutRender, ViewportState vp) {
+    // Check wether its should be rendering or not
+    if (!vp.isRender) {
+        // std::cerr << "EscSequence : ViewPortState is render is set to false" << std::endl;
+        return 0; 
+    }
+
+    std::string SHMfileName = imageSHM;
+    std::string real_path = "/dev/shm/" + SHMfileName;
+    if (std::filesystem::exists(real_path)) {
+//             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
+    } else {
+        std::cerr << "The file is genuinely not at pre display " << real_path << std::endl;
+    }
+
+    // Convert to base64 for kitty
+    std::string b64_shm_name = base64Converter(SHMfileName);
+
+    // Move the cursor to theexact row and column cell
+    std::string move_cursor = "\x1b[" + std::to_string(layoutRender.cursor_row) + ";" 
+                                      + std::to_string(layoutRender.cursor_col) + "H";
+    // write(STDOUT_FILENO, move_cursor.c_str(), move_cursor.size());
+
+    // Create the escape sequence string
+    // std::string escape = "\x1b_Ga=T,f=32,s=" + std::to_string(width) + 
+    //                  ",v=" + std::to_string(height) + 
+    //                  ",t=s,O=0,S=" + std::to_string(pixel_data_sizes) +
+    //                  ",i=1"
+    //                  ",q=2;" + b64_shm_name + "\x1b\\";
+
+    std::string escape = 
+        "\x1b_G"
+        "a=T"                     // Action: Transmit and display
+        ",f=32"                   // Format: 32-bit RGBA
+        ",t=s"                    // Transmission: Shared Memory
+        ",d=a"                    // NOT DELETE SHM (WTF I SHOULD HAVE KNOWN THIS EARLIER)
+        ",i=1"                    // Re-use Image ID 1 (prevents GPU memory leaks)
+        ",q=2"                    // Quiet mode (mutes terminal confirmations)
+        ",s=" + std::to_string(width) +   // Total width of the raw SHM buffer frame
+        ",v=" + std::to_string(height) +  // Total height of the raw SHM buffer frame
+        ",x=" + std::to_string(layoutRender.x) +    // Start X column of the source video crop
+        ",y=" + std::to_string(layoutRender.y) +    // Start Y row of the source video crop
+        ",w=" + std::to_string(layoutRender.w) +    // Width size of our source video crop
+        ",h=" + std::to_string(layoutRender.h) +    // Height size of our source video crop
+        ",c=" + std::to_string(layoutRender.disp_cols) + // Columns of text grid space to span on screen
+        ",r=" + std::to_string(layoutRender.disp_rows) + // Rows of text grid space to span on screen
+        ",X=" + std::to_string(layoutRender.sub_offset_x) + // Fractional X pixel nudge inside the cell
+        ",Y=" + std::to_string(layoutRender.sub_offset_y) + // Fractional Y pixel nudge inside the cell
+        ";" + b64_shm_name +      // The base64 name of our shared memory segment
+        "\x1b\\";                 // Close the sequence
+
+    // Cursor
+    // write(STDOUT_FILENO, "\x1b[H", 3); // Move cursor to top-left corner
+
+    std::string final_render_packet = move_cursor + escape;
+    
+    // Using writeFirst pixel byte:
+    write(STDOUT_FILENO, final_render_packet.c_str(), final_render_packet.size());
+    fflush(stdout);
+    // fprintf(stderr, "\n");
+    
+    return 1;
+}
+
+// Version 2
+int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
+    if (!vp.isRender) return 0; 
+
+    // fprintf(stderr, "Sending escape seq\n");
+
+    char buf[512];
+    int n = snprintf(buf, sizeof(buf),
+        "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
+        lr.cursor_row, lr.cursor_col, 
+        width, height,
+        lr.x, lr.y, lr.w, lr.h, 
+        lr.disp_cols, lr.disp_rows,
+        lr.sub_offset_x, lr.sub_offset_y, 
+        b64_shm.c_str()
+    );
+
+    // Single write syscall
+    write(STDOUT_FILENO, buf, n);
+    fflush(stdout);
+    return 1;
+}
+
+
+
+
+=========================================
+ FILE: renderer.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include "DataType.hpp"
+
+
+// int escSequence(int width, int height, std::string& imageSHM, const LayoutRender layoutRender, ViewportState vp);
+int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp);
+
+=========================================
+ FILE: base64converter.cpp
+=========================================
+#include <iostream>
+#include <string>
+// base64converter.cpp
+
+static const char table[] ="ABCDEFGHIJKLMNOPQRSTUVWXYZ""abcdefghijklmnopqrstuvwxyz""0123456789+/";
+
+std::string base64Converter(const std::string& input) {
+    std::string out;
+    int val = 0;
+    int valb = -6;
+
+    for (unsigned char c : input) {
+        val = (val << 8) + c;
+        valb += 8;
+
+        while (valb >= 0) {
+            out.push_back(table[(val >> valb) & 0x3F]);
+            valb -= 6;
+        }
+    }
+
+    if (valb > -6) {
+        out.push_back(table[((val << 8) >> (valb + 8) &0x3F)]);
+    }
+
+    while (out.size() % 4)
+        out.push_back('=');
+
+    return out;
+}
+=========================================
+ FILE: base64converter.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include <iostream>
+#include <string>
+
+std::string base64Converter(const std::string& input);
+=========================================
+ FILE: terminalLayout.cpp
+=========================================
+// File that contain AABS // any layouting of the video on terminal
+// terminalLayout.cpp
+
+#include "DataType.hpp"
+#include <string>
+
+
+void GetOverlap(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState& viewPort) {
+    // Get inner grid boundaries
+    int t_x1 = internalTerminalGeometry.grid_screen_x;
+    int t_y1 = internalTerminalGeometry.grid_screen_y;
+    int t_x2 = t_x1 + internalTerminalGeometry.w;
+    int t_y2 = t_y1 + internalTerminalGeometry.h;
+
+    // Perform AABS
+    int o_x1 = std::max(t_x1, v_x1);
+    int o_y1 = std::max(t_y1, v_y1);
+    int o_x2 = std::min(t_x2, v_x2);
+    int o_y2 = std::min(t_y2, v_y2);
+
+    // Check if an intersection actually exists
+    if (o_x2 > o_x1 && o_y2 > o_y1) {
+        viewPort.isRender = true;
+        viewPort.overlap_x = o_x1;
+        viewPort.overlap_y = o_y1;
+        viewPort.overlap_w = o_x2 - o_x1;
+        viewPort.overlap_h = o_y2 - o_y1;
+    } else {
+        // No overlap; reset the state to safe zeros    
+        viewPort.isRender = false;
+        viewPort.overlap_x = 0;
+        viewPort.overlap_y = 0;
+        viewPort.overlap_w = 0;
+        viewPort.overlap_h = 0;
+    }
+}
+
+// Main
+void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
+                       InternalTerminalGeometry internalTerminalGeometry,
+                       ViewportState& viewPort, WindowPos windowPos,
+                       videoData videoData, LayoutRender& layoutRender) {
+
+    GetOverlap(v_x1, v_y1, v_x2, v_y2, internalTerminalGeometry, viewPort);
+
+    if (!viewPort.isRender) {
+        return;
+    }
+
+    // FIXED: Scale relative to the video rectangle, NOT the terminal grid
+    int video_rect_w = v_x2 - v_x1;
+    int video_rect_h = v_y2 - v_y1;
+    
+    if (video_rect_w <= 0 || video_rect_h <= 0) {
+        viewPort.isRender = false;
+        return;
+    }
+
+    double scale_x = (double)videoData.video_w / (double)video_rect_w;
+    double scale_y = (double)videoData.video_h / (double)video_rect_h;
+
+    layoutRender.x = (int)((viewPort.overlap_x - v_x1) * scale_x);
+    layoutRender.y = (int)((viewPort.overlap_y - v_y1) * scale_y);
+    layoutRender.w = (int)(viewPort.overlap_w * scale_x);
+    layoutRender.h = (int)(viewPort.overlap_h * scale_y);
+
+    int local_pixel_x = viewPort.overlap_x - internalTerminalGeometry.grid_screen_x;
+    int local_pixel_y = viewPort.overlap_y - internalTerminalGeometry.grid_screen_y;
+
+    layoutRender.cursor_col = (local_pixel_x / internalTerminalGeometry.cell_w) + 1;
+    layoutRender.cursor_row = (local_pixel_y / internalTerminalGeometry.cell_h) + 1;
+
+    layoutRender.sub_offset_x = local_pixel_x % internalTerminalGeometry.cell_w;
+    layoutRender.sub_offset_y = local_pixel_y % internalTerminalGeometry.cell_h;
+
+    // Rounding UP is correct here — you want to cover the full overlap
+    layoutRender.disp_cols = (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) 
+                             / internalTerminalGeometry.cell_w;
+    layoutRender.disp_rows = (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) 
+                             / internalTerminalGeometry.cell_h;
+}
+=========================================
+ FILE: terminalLayout.hpp (Auto-located)
+=========================================
+// terminalLayout.hpp
+#pragma once
+
+
+#include "DataType.hpp"
+
+void GetOverlap(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState& viewPort);
+void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2, InternalTerminalGeometry internalTerminalGeometry, ViewportState& viewPort, WindowPos windowPos, videoData videoData, LayoutRender& layoutRender);
+=========================================
+ FILE: consumerLayout.cpp
+=========================================
+// consumerLayout.cpp
+#include "consumerLayout.hpp"
+#include "socketSend.hpp"
+#include "terminal.hpp"
+#include "terminalLayout.hpp"
+#include "simdjson.h"
+#include <cstdlib>
+
+static videoPos readVideoCorners() {
+    simdjson::dom::parser parser;
+    const char* homeDir = std::getenv("HOME");
+    std::string filePath = homeDir ? std::string(homeDir) + "/.config/HyprLarp.json" : "HyprLarp.json";
+    auto doc = parser.load(filePath);
+    auto corners = doc["cornerLocation"];
+    return {
+        static_cast<int>(corners.at(0).at(0).get_int64().value()),
+        static_cast<int>(corners.at(3).at(0).get_int64().value()),
+        static_cast<int>(corners.at(0).at(1).get_int64().value()),
+        static_cast<int>(corners.at(3).at(1).get_int64().value())
+    };
+}
+
+bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
+                           LayoutRender& layoutRender, ViewportState& viewPort) {
+    // 1. Get all clients from Hyprland
+    nlohmann::json clients;
+    if (GetWindowsPropertiesData(clients) != 0) return false;
+
+    // 2. Find our own window’s position/size
+    WindowPos pos;
+    bool found = false;
+    for (const auto& client : clients) {
+        if (client.contains("pid") && client["pid"].get<pid_t>() == terminalPid) {
+            pos.at   = client["at"].get<std::vector<int>>();
+            pos.size = client["size"].get<std::vector<int>>();
+            found = true;
+            break;
+        }
+    }
+    if (!found) return false;
+
+    // 3. Get our own terminal grid size (THIS IS THE CORRECT ONE)
+    InternalTerminalGeometry geo = GetInternalTerminalGeometry(pos);  // uses ioctl on our own terminal
+
+    // 4. Read video corners and compute
+    videoPos corners = readVideoCorners();
+    videoData vd{};
+    vd.video_w = video_w;
+    vd.video_h = video_h;
+
+    layoutCalculation(corners.video_left, corners.video_top,
+                      corners.video_right, corners.video_bottom,
+                      geo, viewPort, pos, vd, layoutRender);
+    return true;
+}
+=========================================
+ FILE: consumerLayout.hpp (Auto-located)
+=========================================
+#pragma once
+
+#include "DataType.hpp"
+#include <sys/types.h>
+
+bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h, LayoutRender& layoutRender, ViewportState& viewPort);
