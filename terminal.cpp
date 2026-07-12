@@ -143,7 +143,7 @@ InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
 
     // FIXED: Use size[0] and size[1] (dimensions), not at[0]/at[1] (screen coords)
     int pad_x = (pos.size[0] - w) / 2;
-    int pad_y = pos.size[1] - h;
+    int pad_y = (pos.size[1] - h) / 2;
 
     int grid_screen_x = pos.at[0] + pad_x;
     int grid_screen_y = pos.at[1] + pad_y;
