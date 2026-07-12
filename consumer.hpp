@@ -166,22 +166,28 @@ public:
 //         return 1;
 //     }
 
+    static void logRenderFrameSkip(const char* reason) {
+        static int count = 0;
+        if (++count % 60 != 0) return; // throttle
+        std::ofstream dbg("/tmp/hyprlarp_render_debug.log", std::ios::app);
+        dbg << "skip: " << reason << std::endl;
+    }
+
     // use this instead
     int renderFrame() {
-        // Periodically refresh layout (every 10 frames) debug test
         static int frameCount = 0;
         if (++frameCount % 10 == 0) {
             refreshLayout();
         }
 
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
-        if (!header) return 0;
+        if (!header) { logRenderFrameSkip("no_header"); return 0; }
 
         const uint32_t num_slots = header->num_sloth;
-        if (num_slots == 0) return 0;
+        if (num_slots == 0) { logRenderFrameSkip("num_slots_zero"); return 0; }
 
         uint64_t global_seq = header->global_sequences.load(std::memory_order_acquire);
-        if (global_seq == 0) return 0;
+        if (global_seq == 0) { logRenderFrameSkip("global_seq_zero"); return 0; }
 
         uint64_t target_seq;
         if (last_sequence == static_cast<uint64_t>(-1)) {
@@ -190,7 +196,7 @@ public:
             target_seq = last_sequence + 1;
         }
 
-        if (global_seq < target_seq) return 0;
+        if (global_seq < target_seq) { logRenderFrameSkip("global_lt_target"); return 0; }
 
         if (global_seq >= target_seq + num_slots) {
             target_seq = global_seq - num_slots + 1;
@@ -200,10 +206,11 @@ public:
         const uint64_t expected_slot_seq = target_seq * 2 + 1;
         const uint64_t slot_seq = header->slotMetadata[slot].sequence.load(std::memory_order_acquire);
 
-        if (slot_seq % 2 == 0) return 0; // Producer still writing
-        if (slot_seq < expected_slot_seq) return 0;
+        if (slot_seq % 2 == 0) { logRenderFrameSkip("producer_writing"); return 0; }
+        if (slot_seq < expected_slot_seq) { logRenderFrameSkip("slot_seq_behind"); return 0; }
         if (slot_seq > expected_slot_seq) {
-            last_sequence = target_seq;   // skip overwritten frame
+            last_sequence = target_seq;
+            logRenderFrameSkip("slot_seq_ahead_skip");
             return 0;
         }
 
@@ -211,20 +218,20 @@ public:
         const std::string frameB64Name = base64Converter(frameSHMName);
 
         int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
-        if (fd == -1) return 0;
+        if (fd == -1) { logRenderFrameSkip("shm_open_failed"); return 0; }
         ftruncate(fd, image_size);
 
         uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         close(fd);
-        if (consSHM == MAP_FAILED) return 0;
+        if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed"); return 0; }
 
         if (readFrameFromSlot(ProducerSHMPtr, slot, consSHM) == -1) {
             munmap(consSHM, image_size);
             shm_unlink(("/" + frameSHMName).c_str());
+            logRenderFrameSkip("read_frame_failed");
             return 0;
         }
 
-        // Use the current layout (updated by refreshLayout)
         escSequence(width, height, frameB64Name, layoutRender, viewPort);
 
         munmap(consSHM, image_size);
@@ -236,6 +243,7 @@ public:
 
         return 1;
     }
+    
     // Debug mode: display frame timing stats while showing video
     int displayDebugStats() {
         auto now = std::chrono::high_resolution_clock::now();

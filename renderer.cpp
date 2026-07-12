@@ -8,6 +8,22 @@
 #include <filesystem>
 #include "DataType.hpp"
 #include <cstdio>
+#include <fstream>
+#include <cstring>
+
+static bool writeAll(int fd, const char* buf, size_t len) {
+    size_t written = 0;
+    while (written < len) {
+        ssize_t n = write(fd, buf + written, len - written);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) continue; // only matters if fd is non-blocking
+            return false;
+        }
+        written += static_cast<size_t>(n);
+    }
+    return true;
+}
 
 // Function to display to write the escape sequences
 int escSequence(int width, int height, std::string& imageSHM, const LayoutRender layoutRender, ViewportState vp) {
@@ -76,26 +92,38 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
 
 // Version 2
 int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
-    if (!vp.isRender) return 0; 
-
-    // fprintf(stderr, "Sending escape seq\n");
+    if (!vp.isRender) return 0;
 
     char buf[512];
     int n = snprintf(buf, sizeof(buf),
         "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
-        lr.cursor_row, lr.cursor_col, 
+        lr.cursor_row, lr.cursor_col,
         width, height,
-        lr.x, lr.y, lr.w, lr.h, 
+        lr.x, lr.y, lr.w, lr.h,
         lr.disp_cols, lr.disp_rows,
-        lr.sub_offset_x, lr.sub_offset_y, 
+        lr.sub_offset_x, lr.sub_offset_y,
         b64_shm.c_str()
     );
 
-    // Single write syscall
-    write(STDOUT_FILENO, buf, n);
+    // DEBUG: log every call, once per second is enough to not flood the file
+    static int dbgcount = 0;
+    if (++dbgcount % 60 == 0) {
+        std::ofstream dbg("/tmp/hyprlarp_esc_debug.log", std::ios::app);
+        dbg << "n=" << n << " buflen_ok=" << (n >= 0 && (size_t)n < sizeof(buf))
+            << " b64_shm_len=" << b64_shm.size()
+            << " row=" << lr.cursor_row << " col=" << lr.cursor_col
+            << std::endl;
+    }
+
+    if (n < 0 || static_cast<size_t>(n) >= sizeof(buf)) {
+        std::cerr << "escSequence: snprintf truncated or failed, n=" << n << std::endl;
+        return 0;
+    }
+
+    if (!writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n))) {
+        std::cerr << "escSequence: write failed, errno=" << errno << " (" << strerror(errno) << ")" << std::endl;
+        return 0;
+    }
     fflush(stdout);
     return 1;
 }
-
-
-

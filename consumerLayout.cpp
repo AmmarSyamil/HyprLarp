@@ -5,6 +5,7 @@
 #include "terminalLayout.hpp"
 #include "simdjson.h"
 #include <cstdlib>
+#include <fstream>
 
 static videoPos readVideoCorners() {
     simdjson::dom::parser parser;
@@ -48,8 +49,25 @@ bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
     vd.video_w = video_w;
     vd.video_h = video_h;
 
+    
+
     layoutCalculation(corners.video_left, corners.video_top,
                       corners.video_right, corners.video_bottom,
                       geo, viewPort, pos, vd, layoutRender);
+
+    std::ofstream dbg("/tmp/hyprlarp_debug.log", std::ios::app);
+    dbg << "pid=" << terminalPid
+        << " at=(" << pos.at[0] << "," << pos.at[1] << ")"
+        << " size=(" << pos.size[0] << "," << pos.size[1] << ")"
+        << " grid_w=" << geo.w << " grid_h=" << geo.h
+        << " cols=" << geo.cols << " rows=" << geo.rows
+        << " cell_w=" << geo.cell_w << " cell_h=" << geo.cell_h
+        << " pad_x=" << geo.pad_x << " pad_y=" << geo.pad_y
+        << " grid_screen_y=" << geo.grid_screen_y
+        << std::endl;
+    dbg << " isRender=" << viewPort.isRender
+        << " overlap=(" << viewPort.overlap_x << "," << viewPort.overlap_y
+        << "," << viewPort.overlap_w << "," << viewPort.overlap_h << ")"
+        << std::endl;
     return true;
 }

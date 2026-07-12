@@ -136,7 +136,7 @@ InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
     //     return {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     // }
 
-    if (!get_terminal_internal_geometry(w, h, col, row)) {
+    if (get_terminal_internal_geometry(w, h, col, row) != 1) {
         std::cerr << "Failed to get terminal internal geometry via ioctl" << std::endl;
         return {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     }
