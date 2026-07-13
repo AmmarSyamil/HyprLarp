@@ -21,13 +21,10 @@ static videoPos readVideoCorners() {
     };
 }
 
-bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
-                           LayoutRender& layoutRender, ViewportState& viewPort) {
-    // 1. Get all clients from Hyprland
+bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h, LayoutRender& layoutRender, ViewportState& viewPort) {
     nlohmann::json clients;
     if (GetWindowsPropertiesData(clients) != 0) return false;
 
-    // 2. Find our own window’s position/size
     WindowPos pos;
     bool found = false;
     for (const auto& client : clients) {
@@ -40,10 +37,8 @@ bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
     }
     if (!found) return false;
 
-    // 3. Get our own terminal grid size (THIS IS THE CORRECT ONE)
     InternalTerminalGeometry geo = GetInternalTerminalGeometry(pos);  // uses ioctl on our own terminal
 
-    // 4. Read video corners and compute
     videoPos corners = readVideoCorners();
     videoData vd{};
     vd.video_w = video_w;
@@ -51,9 +46,7 @@ bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
 
     
 
-    layoutCalculation(corners.video_left, corners.video_top,
-                      corners.video_right, corners.video_bottom,
-                      geo, viewPort, pos, vd, layoutRender);
+    layoutCalculation(corners.video_left, corners.video_top, corners.video_right, corners.video_bottom, geo, viewPort, pos, vd, layoutRender);
 
     std::ofstream dbg("/tmp/hyprlarp_debug.log", std::ios::app);
     dbg << "pid=" << terminalPid

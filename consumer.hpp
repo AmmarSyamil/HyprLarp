@@ -354,27 +354,6 @@ public:
 
     // Function to setup the class
     bool init() {
-        // if (getImageData() != 1) return false;
-        // ProducerSHMPtr = openSHM();
-        // if (!ProducerSHMPtr) return false;
-
-
-        // BaseSHMName = "HyprLarp_" + std::to_string(getpid());
-
-        // // debug test
-        // struct winsize ws;
-        // ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
-        // std::cerr << "Terminal size: " << ws.ws_col << "x" << ws.ws_row << std::endl;
-
-        // return fetchLayout();
-
-
-        // debug test
-        // if (getImageData() != 1) return false;
-        // ProducerSHMPtr = openSHM();
-        // if (!ProducerSHMPtr) return false;
-        // terminalPid = FindTerminalPID();
-        // return refreshLayout();   // initial layout
         if (getImageData() != 1) return false;
         ProducerSHMPtr = openSHM();
         if (!ProducerSHMPtr) return false;

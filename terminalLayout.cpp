@@ -1,6 +1,5 @@
 // File that contain AABS // any layouting of the video on terminal
 // terminalLayout.cpp
-
 #include "DataType.hpp"
 #include <string>
 
@@ -47,7 +46,6 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
         return;
     }
 
-    // FIXED: Scale relative to the video rectangle, NOT the terminal grid
     int video_rect_w = v_x2 - v_x1;
     int video_rect_h = v_y2 - v_y1;
     
@@ -73,9 +71,6 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
     layoutRender.sub_offset_x = local_pixel_x % internalTerminalGeometry.cell_w;
     layoutRender.sub_offset_y = local_pixel_y % internalTerminalGeometry.cell_h;
 
-    // Rounding UP is correct here — you want to cover the full overlap
-    layoutRender.disp_cols = (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) 
-                             / internalTerminalGeometry.cell_w;
-    layoutRender.disp_rows = (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) 
-                             / internalTerminalGeometry.cell_h;
+    layoutRender.disp_cols = (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) / internalTerminalGeometry.cell_w;
+    layoutRender.disp_rows = (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) / internalTerminalGeometry.cell_h;
 }
