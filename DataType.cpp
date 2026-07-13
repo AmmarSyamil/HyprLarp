@@ -70,7 +70,7 @@ std::string readVideoPath() {
 int WindowData::GetVideoData() {
     
 
-    const char* filename = this->videoData.videoPath.c_str();
+    const char* filename = this->vidData.videoPath.c_str();
     AVFormatContext* format_ctx = nullptr;
     
 
@@ -94,14 +94,14 @@ int WindowData::GetVideoData() {
             AVCodecParameters* codec_params = format_ctx->streams[i]->codecpar;
             AVStream* stream = format_ctx->streams[i];
 
-            this->videoData.video_w = codec_params->width;
-            this->videoData.video_h= codec_params->height;
+            this->vidData.video_w = codec_params->width;
+            this->vidData.video_h= codec_params->height;
             
             // Calculate FPS reliably via fractional numbers
-            this->videoData.fps = 0.0;
+            this->vidData.fps = 0.0;
 
             if (stream->avg_frame_rate.den > 0) {
-                this->videoData.fps = static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
+                this->vidData.fps = static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
             }
 
             break;
@@ -152,7 +152,7 @@ WorkspaceData::WorkspaceData() {
     WorkspaceData::setWorkspaceIDStartup();
 
     // Inttitiae the pos video
-    this->videoPos = jsonParser();
+    this->vidPos = jsonParser();
 
     // Put main terminal window ID into windowData type in the array
     //     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
@@ -168,7 +168,7 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // Put requirement data into the object
     this->windowID = windowID;
     this->windowType = windowType;
-    this->videoData.videoPath = readVideoPath();
+    this->vidData.videoPath = readVideoPath();
 
 
     // this->windowPos = pos; 
@@ -222,7 +222,7 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
           << std::endl;
 
     // Setup terminalLayout
-    layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+    layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->vidData, this->layoutRender);
 
 }
 
@@ -232,7 +232,7 @@ WindowData::WindowData(int windowType, std::string windowID, const WindowPos& po
     this->windowType = windowType;
     this->windowPos = pos;
     this->pid = pid;
-    this->videoData.videoPath = readVideoPath();
+    this->vidData.videoPath = readVideoPath();
 
     // The rest is identical to your existing constructor:
     this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
@@ -245,7 +245,7 @@ WindowData::WindowData(int windowType, std::string windowID, const WindowPos& po
     GetWindowPosCartesian();
     GetVideoData();
     layoutCalculation(vpos.video_left, vpos.video_top, vpos.video_right, vpos.video_bottom,
-                      this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+                      this->internalTerminalGeometry, this->viewPort, this->windowPos, this->vidData, this->layoutRender);
 }
 
 
@@ -340,8 +340,8 @@ int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
         return 0;
     }
 
-    this->windowData.emplace_back(windowType, windowID, pos, windowPid, this->videoPos);
-    this->windowData.back().videoData.videoPath = this->videoPath;
+    this->windowData.emplace_back(windowType, windowID, pos, windowPid, this->vidPos);
+    this->windowData.back().vidData.videoPath = this->videoPath;
 
     return 1;
 }
@@ -369,7 +369,7 @@ int WorkspaceData::FetchWindowID() {
 
         WindowPos pos = windowPosFromClient(jsonData);
         pid_t pid = jsonData["pid"].get<pid_t>();
-        this->windowData.emplace_back(0, address, pos, pid, this->videoPos);
+        this->windowData.emplace_back(0, address, pos, pid, this->vidPos);
     }
     return 1;
 };

@@ -5,6 +5,9 @@
 #include "consumer.hpp"
 #include "shm.hpp"
 #include <csignal>
+#include <chrono>
+#include <fstream>
+
 
 // Handle signals to ensure the cursor is shown again on exit
 static void handle_signal(int) {

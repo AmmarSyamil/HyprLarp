@@ -10,6 +10,16 @@
 #include <cstdio>
 #include <fstream>
 #include <cstring>
+#include "terminal.hpp"
+
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 static bool writeAll(int fd, const char* buf, size_t len) {
     size_t written = 0;
@@ -120,10 +130,12 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
         return 0;
     }
 
+    hb("before_write");
     if (!writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n))) {
         std::cerr << "escSequence: write failed, errno=" << errno << " (" << strerror(errno) << ")" << std::endl;
         return 0;
     }
+    hb("after_write");
     fflush(stdout);
     return 1;
 }

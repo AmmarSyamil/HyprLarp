@@ -342,7 +342,7 @@ int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer
 
     // Check if the sequence changed during the read
     if (seq_before != seq_after) {
-        std::cerr << "readFrameFromSlot: Sequence changed during read for slot " << slot_index_target << ", data may be inconsistent." << std::endl;
+        // std::cerr << "readFrameFromSlot: Sequence changed during read for slot " << slot_index_target << ", data may be inconsistent." << std::endl;
         return -1;
     }
 

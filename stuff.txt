@@ -165,9 +165,19 @@ int main(int argc, char* argv[]) {
 #include <list>
 #include <mutex>
 #include <nlohmann/json.hpp> 
-
+#include "terminal.hpp"
 #include "DataType.hpp"
+#include <chrono>
+#include <fstream>
 //Function that being called
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 //Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
@@ -304,6 +314,8 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     std::string jsonData{};
     char buffer[4096] = {0};
 
+    hb("before_recv");
+
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer) - 1, 0);
@@ -325,6 +337,8 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
             break;
         }
     }
+
+    hb("after_recv");
 
     close(sock);
 
@@ -831,7 +845,7 @@ std::string readVideoPath() {
 int WindowData::GetVideoData() {
     
 
-    const char* filename = this->videoData.videoPath.c_str();
+    const char* filename = this->vidData.videoPath.c_str();
     AVFormatContext* format_ctx = nullptr;
     
 
@@ -855,14 +869,14 @@ int WindowData::GetVideoData() {
             AVCodecParameters* codec_params = format_ctx->streams[i]->codecpar;
             AVStream* stream = format_ctx->streams[i];
 
-            this->videoData.video_w = codec_params->width;
-            this->videoData.video_h= codec_params->height;
+            this->vidData.video_w = codec_params->width;
+            this->vidData.video_h= codec_params->height;
             
             // Calculate FPS reliably via fractional numbers
-            this->videoData.fps = 0.0;
+            this->vidData.fps = 0.0;
 
             if (stream->avg_frame_rate.den > 0) {
-                this->videoData.fps = static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
+                this->vidData.fps = static_cast<double>(stream->avg_frame_rate.num) / stream->avg_frame_rate.den;
             }
 
             break;
@@ -913,7 +927,7 @@ WorkspaceData::WorkspaceData() {
     WorkspaceData::setWorkspaceIDStartup();
 
     // Inttitiae the pos video
-    this->videoPos = jsonParser();
+    this->vidPos = jsonParser();
 
     // Put main terminal window ID into windowData type in the array
     //     std::cout << std::endl << this->mainTerminalWindowID << std::endl;
@@ -929,7 +943,7 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // Put requirement data into the object
     this->windowID = windowID;
     this->windowType = windowType;
-    this->videoData.videoPath = readVideoPath();
+    this->vidData.videoPath = readVideoPath();
 
 
     // this->windowPos = pos; 
@@ -983,7 +997,7 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
           << std::endl;
 
     // Setup terminalLayout
-    layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+    layoutCalculation(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort, this->windowPos, this->vidData, this->layoutRender);
 
 }
 
@@ -993,7 +1007,7 @@ WindowData::WindowData(int windowType, std::string windowID, const WindowPos& po
     this->windowType = windowType;
     this->windowPos = pos;
     this->pid = pid;
-    this->videoData.videoPath = readVideoPath();
+    this->vidData.videoPath = readVideoPath();
 
     // The rest is identical to your existing constructor:
     this->internalTerminalGeometry = GetInternalTerminalGeometry(this->windowPos);
@@ -1006,7 +1020,7 @@ WindowData::WindowData(int windowType, std::string windowID, const WindowPos& po
     GetWindowPosCartesian();
     GetVideoData();
     layoutCalculation(vpos.video_left, vpos.video_top, vpos.video_right, vpos.video_bottom,
-                      this->internalTerminalGeometry, this->viewPort, this->windowPos, this->videoData, this->layoutRender);
+                      this->internalTerminalGeometry, this->viewPort, this->windowPos, this->vidData, this->layoutRender);
 }
 
 
@@ -1101,8 +1115,8 @@ int WorkspaceData::InsertWindowData(std::string& windowID, int windowType) {
         return 0;
     }
 
-    this->windowData.emplace_back(windowType, windowID, pos, windowPid, this->videoPos);
-    this->windowData.back().videoData.videoPath = this->videoPath;
+    this->windowData.emplace_back(windowType, windowID, pos, windowPid, this->vidPos);
+    this->windowData.back().vidData.videoPath = this->videoPath;
 
     return 1;
 }
@@ -1130,7 +1144,7 @@ int WorkspaceData::FetchWindowID() {
 
         WindowPos pos = windowPosFromClient(jsonData);
         pid_t pid = jsonData["pid"].get<pid_t>();
-        this->windowData.emplace_back(0, address, pos, pid, this->videoPos);
+        this->windowData.emplace_back(0, address, pos, pid, this->vidPos);
     }
     return 1;
 };
@@ -1357,7 +1371,7 @@ private:
     pid_t pid = 0;
     
     public:
-    videoData videoData;
+    videoData vidData;
     
     // Helper function
     const LayoutRender& getLayoutRender() const { return layoutRender; }
@@ -1398,7 +1412,7 @@ private:
     int WorkspaceID;
     
     std::vector<WindowData> windowData;
-    videoPos videoPos;
+    videoPos vidPos;
 
 
 public:
@@ -1600,6 +1614,17 @@ int IsPIDTerminal(pid_t pid);
 #include "DataType.hpp"
 #include <termios.h>
 #include <sys/ioctl.h>
+#include "terminal.hpp"
+#include <chrono>
+#include <fstream>
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 // Set terminal to raw mode to read escape sequences instantly
 bool set_terminal_raw(struct termios& original) {
@@ -1621,7 +1646,7 @@ void restore_terminal(const struct termios& original) {
 }
 
 // Function to read the response from the terminal with a timeout
-std::string read_terminal_response(int timeout = 100) {
+std::string read_terminal_response(int timeout) {
     struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
     std::string result;
     char ch;
@@ -1695,10 +1720,9 @@ bool query_terminal_internal_geometry(int& w, int& h, int& cols, int& rows) {
 int get_terminal_internal_geometry(int& text_w, int& text_h, int& cols, int& rows) {
     struct winsize ws;
 
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1) {
-        std::cerr << "cant ioctl" << std::endl;
-        return -1;
-    }
+    hb("before_ioctl");
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1) { hb("after_ioctl_failed");}
+    hb("after_ioctl");
 
     if (ws.ws_xpixel == 0 || ws.ws_ypixel == 0) {
         std::cerr << "no data" << std::endl;
@@ -1752,6 +1776,7 @@ InternalTerminalGeometry GetInternalTerminalGeometry(const WindowPos& pos) {
 #pragma once
 #include <string>
 #include "DataType.hpp"
+#include <fstream>
 
 std::string read_terminal_response(int timeout = 100);
 bool parse_terminal_response(const std::string& resp, int& h, int& w);
@@ -2679,7 +2704,7 @@ int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer
 
     // Check if the sequence changed during the read
     if (seq_before != seq_after) {
-        std::cerr << "readFrameFromSlot: Sequence changed during read for slot " << slot_index_target << ", data may be inconsistent." << std::endl;
+        // std::cerr << "readFrameFromSlot: Sequence changed during read for slot " << slot_index_target << ", data may be inconsistent." << std::endl;
         return -1;
     }
 
@@ -3477,6 +3502,9 @@ int setup(int argc, char* argv[]);
 #include "consumer.hpp"
 #include "shm.hpp"
 #include <csignal>
+#include <chrono>
+#include <fstream>
+
 
 // Handle signals to ensure the cursor is shown again on exit
 static void handle_signal(int) {
@@ -3547,7 +3575,17 @@ extern "C" {
 #include "consumerLayout.hpp"
 #include <sys/ioctl.h>
 #include <fstream>
+#include "terminal.hpp"
+#include <chrono>
 
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 class consumer
 {
@@ -3741,23 +3779,29 @@ public:
             return 0;
         }
 
+
+        if (frame_data_cache.empty()) {
+            frame_data_cache.resize(image_size);
+        }
+        if (readFrameFromSlot(ProducerSHMPtr, slot, frame_data_cache.data()) == -1) {
+            logRenderFrameSkip("read_frame_failed");
+            return 0;
+        }
+
         const std::string frameSHMName = BaseSHMName + "_" + std::to_string(target_seq);
         const std::string frameB64Name = base64Converter(frameSHMName);
 
+        hb("before_frame_shm_open");
         int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
         if (fd == -1) { logRenderFrameSkip("shm_open_failed"); return 0; }
         ftruncate(fd, image_size);
 
         uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         close(fd);
+        hb("after_frame_shm_open");
         if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed"); return 0; }
 
-        if (readFrameFromSlot(ProducerSHMPtr, slot, consSHM) == -1) {
-            munmap(consSHM, image_size);
-            shm_unlink(("/" + frameSHMName).c_str());
-            logRenderFrameSkip("read_frame_failed");
-            return 0;
-        }
+        std::memcpy(consSHM, frame_data_cache.data(), image_size);
 
         escSequence(width, height, frameB64Name, layoutRender, viewPort);
 
@@ -3937,6 +3981,16 @@ int mainConsumer();
 #include <cstdio>
 #include <fstream>
 #include <cstring>
+#include "terminal.hpp"
+
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 static bool writeAll(int fd, const char* buf, size_t len) {
     size_t written = 0;
@@ -4047,10 +4101,12 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
         return 0;
     }
 
+    hb("before_write");
     if (!writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n))) {
         std::cerr << "escSequence: write failed, errno=" << errno << " (" << strerror(errno) << ")" << std::endl;
         return 0;
     }
+    hb("after_write");
     fflush(stdout);
     return 1;
 }

@@ -109,7 +109,7 @@ private:
     pid_t pid = 0;
     
     public:
-    videoData videoData;
+    videoData vidData;
     
     // Helper function
     const LayoutRender& getLayoutRender() const { return layoutRender; }
@@ -150,7 +150,7 @@ private:
     int WorkspaceID;
     
     std::vector<WindowData> windowData;
-    videoPos videoPos;
+    videoPos vidPos;
 
 
 public:

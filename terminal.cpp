@@ -11,6 +11,17 @@
 #include "DataType.hpp"
 #include <termios.h>
 #include <sys/ioctl.h>
+#include "terminal.hpp"
+#include <chrono>
+#include <fstream>
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 // Set terminal to raw mode to read escape sequences instantly
 bool set_terminal_raw(struct termios& original) {
@@ -32,7 +43,7 @@ void restore_terminal(const struct termios& original) {
 }
 
 // Function to read the response from the terminal with a timeout
-std::string read_terminal_response(int timeout = 100) {
+std::string read_terminal_response(int timeout) {
     struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
     std::string result;
     char ch;
@@ -106,10 +117,9 @@ bool query_terminal_internal_geometry(int& w, int& h, int& cols, int& rows) {
 int get_terminal_internal_geometry(int& text_w, int& text_h, int& cols, int& rows) {
     struct winsize ws;
 
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1) {
-        std::cerr << "cant ioctl" << std::endl;
-        return -1;
-    }
+    hb("before_ioctl");
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)==-1) { hb("after_ioctl_failed");}
+    hb("after_ioctl");
 
     if (ws.ws_xpixel == 0 || ws.ws_ypixel == 0) {
         std::cerr << "no data" << std::endl;

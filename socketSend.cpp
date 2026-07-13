@@ -10,9 +10,19 @@
 #include <list>
 #include <mutex>
 #include <nlohmann/json.hpp> 
-
+#include "terminal.hpp"
 #include "DataType.hpp"
+#include <chrono>
+#include <fstream>
 //Function that being called
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 //Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
@@ -149,6 +159,8 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     std::string jsonData{};
     char buffer[4096] = {0};
 
+    hb("before_recv");
+
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer) - 1, 0);
@@ -170,6 +182,8 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
             break;
         }
     }
+
+    hb("after_recv");
 
     close(sock);
 

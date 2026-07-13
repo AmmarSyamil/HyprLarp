@@ -20,7 +20,17 @@ extern "C" {
 #include "consumerLayout.hpp"
 #include <sys/ioctl.h>
 #include <fstream>
+#include "terminal.hpp"
+#include <chrono>
 
+
+static void hb(const char* where) {
+    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " " << where << std::endl;
+    dbg.flush();
+}
 
 class consumer
 {
@@ -143,29 +153,6 @@ public:
         }
     }
 
-    // Function to display the image of the SHM
-    // deprecated
-//     int displayImage() {
-//         if (width == 0 || height == 0) {
-//             std::cerr << "dispalyImage : unvalid width and height" << std::endl;
-//             return -1;
-//         }
-
-//         // Check SHM
-//         std::string real_path = std::string("/dev/shm/") + SHMfileName;
-//         if (std::filesystem::exists(real_path)) {
-// //             std::cout << "The file exists at for pre display " << real_path << " right now!" << std::endl;
-//         } else {
-// //             std::cout << "The file is genuinely not at pre display " << real_path << std::endl;
-//             // std::cerr << "consumer"
-//             throw std::runtime_error("consumer displayImage : Failed to find corespond SHMfile");
-//         }
-
-//         escSequence(width, height, image_size, SHMfileName, videoHeaderSize);
-
-//         return 1;
-//     }
-
     static void logRenderFrameSkip(const char* reason) {
         static int count = 0;
         if (++count % 60 != 0) return; // throttle
@@ -214,23 +201,29 @@ public:
             return 0;
         }
 
+
+        if (frame_data_cache.empty()) {
+            frame_data_cache.resize(image_size);
+        }
+        if (readFrameFromSlot(ProducerSHMPtr, slot, frame_data_cache.data()) == -1) {
+            logRenderFrameSkip("read_frame_failed");
+            return 0;
+        }
+
         const std::string frameSHMName = BaseSHMName + "_" + std::to_string(target_seq);
         const std::string frameB64Name = base64Converter(frameSHMName);
 
+        hb("before_frame_shm_open");
         int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
         if (fd == -1) { logRenderFrameSkip("shm_open_failed"); return 0; }
         ftruncate(fd, image_size);
 
         uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         close(fd);
+        hb("after_frame_shm_open");
         if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed"); return 0; }
 
-        if (readFrameFromSlot(ProducerSHMPtr, slot, consSHM) == -1) {
-            munmap(consSHM, image_size);
-            shm_unlink(("/" + frameSHMName).c_str());
-            logRenderFrameSkip("read_frame_failed");
-            return 0;
-        }
+        std::memcpy(consSHM, frame_data_cache.data(), image_size);
 
         escSequence(width, height, frameB64Name, layoutRender, viewPort);
 
