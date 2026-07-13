@@ -186,7 +186,7 @@ public:
         if (global_seq < target_seq) { logRenderFrameSkip("global_lt_target"); return 0; }
 
         if (global_seq >= target_seq + num_slots) {
-            target_seq = global_seq - num_slots + 1;
+           target_seq = (global_seq > 2) ? global_seq - 2 : global_seq;
         }
 
         const uint32_t slot = static_cast<uint32_t>(target_seq % num_slots);
