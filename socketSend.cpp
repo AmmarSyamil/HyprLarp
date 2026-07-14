@@ -14,6 +14,8 @@
 #include "DataType.hpp"
 #include <chrono>
 #include <fstream>
+#include <fcntl.h>
+#include <poll.h>
 //Function that being called
 
 static void hb(const char* where) {
@@ -103,10 +105,6 @@ int queryWorkspaceId(const nlohmann::json data, std::string address) {
             return jsonData["workspace"]["id"];
         }
     }
-
-    // if (output.empty()) {
-    //     return 0;
-    // }
     
     return -1;
 }
@@ -121,16 +119,12 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
         return 1;
     }
 
-    // Bail out instead of hanging forever if Hyprland's IPC is slow/stuck.
-    // This call runs synchronously inside the render loop, so a hang here
-    // freezes video output on the consumer side.
     struct timeval tv{};
     tv.tv_sec = 0;
     tv.tv_usec = 200000; // 200ms
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     // Get socket path
-    // $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock
     std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
 
     // Make the sockaddr_un stuff
@@ -138,13 +132,44 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path.c_str());
 
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
     // Connect to the socket
+    hb("before_connect");
     int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
     if (connection < 0) {
         std::cerr << "Socket connection failed at connecting for socket sends";
         close(sock);
         return 1;
     }
+    if (connection < 0) { // EINPROGRESS - wait for it to complete, bounded
+        struct pollfd pfd{};
+        pfd.fd = sock;
+        pfd.events = POLLOUT;
+        int pret = poll(&pfd, 1, 200); // 200ms bound, matching the recv timeout
+
+        if (pret <= 0) {
+            hb("after_connect_timeout");
+            std::cerr << "GetWindowsPropertiesData: connect() timed out\n";
+            close(sock);
+            return 1;
+        }
+
+        int so_error = 0;
+        socklen_t len = sizeof(so_error);
+        getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
+        if (so_error != 0) {
+            hb("after_connect_error");
+            std::cerr << "GetWindowsPropertiesData: connect() failed: " << strerror(so_error) << "\n";
+            close(sock);
+            return 1;
+        }
+    }
+    hb("after_connect");
+
+    // Restore stuff
+    fcntl(sock, F_SETFL, flags);
 
     // Data to send
     std::string dataSend = "j/clients";
@@ -159,8 +184,8 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
     std::string jsonData{};
     char buffer[4096] = {0};
 
+    // recv loop
     hb("before_recv");
-
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer) - 1, 0);
@@ -182,11 +207,9 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
             break;
         }
     }
-
     hb("after_recv");
 
     close(sock);
-
     if (jsonData.empty()) {
         std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
         return 1;

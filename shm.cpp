@@ -18,8 +18,18 @@ extern "C" {
 #include <fcntl.h>
 #include <unistd.h>
 }
-
 #include "videoDecoder.hpp"
+#include "checkTerminal.hpp"
+
+// logging
+static void tlog(const char* tag, const std::string& msg) {
+    static std::ofstream dbg("/tmp/hyprlarp_unified.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " [" << tag << ":" << FindTerminalPID() << "] " << msg << std::endl;
+    dbg.flush();
+}
+
 
 static std::string normalizeSHMName(const std::string& name) {
     if (name.empty()) {
@@ -312,6 +322,8 @@ int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data
     // Update the global sequence and write slot index
     header->global_sequences.store(frame_number, std::memory_order_release);
     header->write_slot_index.store(slot_index_target, std::memory_order_release);
+
+    tlog("PRODUCER", "committed frame=" + std::to_string(frame_number) + " slot=" + std::to_string(slot_index_target));
 
     return 1;
 }

@@ -23,13 +23,14 @@ extern "C" {
 #include "terminal.hpp"
 #include <chrono>
 #include "renderer.hpp"
+#include <thread>
 
 // universal logging
 static void tlog(const char* tag, const std::string& msg) {
     static std::ofstream dbg("/tmp/hyprlarp_unified.log", std::ios::app);
     auto now = std::chrono::steady_clock::now().time_since_epoch();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
-    dbg << ms << " [" << tag << "] " << msg << std::endl;
+    dbg << ms << " [" << tag << ":" << FindTerminalPID() << "] " << msg << std::endl;
     dbg.flush();
 }
 
@@ -69,7 +70,6 @@ private:
     std::chrono::high_resolution_clock::time_point last_frame_time;
     std::vector<uint8_t> frame_data_cache;  // Pre-allocated frame buffer
     bool layoutReady = false;
-
 
 public:
     int frame = 0;
@@ -164,28 +164,30 @@ public:
     }
 
     void logRenderFrameSkip(const char* reason, uint64_t global_seq, uint64_t target_seq) {
-        if (global_seq < target_seq) {
-            std::ofstream dbg("/tmp/hyprlarp_render_debug.log", std::ios::app);
-            dbg << "skip: " << reason << " global_seq=" << global_seq
-                << " target_seq=" << target_seq
-                << " last_sequence=" << last_sequence
-                << std::endl;
-        }
+        std::ofstream dbg("/tmp/hyprlarp_render_debug.log", std::ios::app);
+        dbg << "skip: " << reason << " global_seq=" << global_seq
+            << " target_seq=" << target_seq
+            << " last_sequence=" << last_sequence
+            << std::endl;
     }
 
-    // use this instead
+// use this instead
 int renderFrame() {
         // check rendering status
         static bool wasRendering = false;
         if (!viewPort.isRender) {
             if (wasRendering) {
-                // Just went out of view - clear the last frame instead of leaving it stuck
+                tlog("CONSUMER", "went_blank last_sequence=" + std::to_string(last_sequence));
                 const char* clear_seq = "\x1b_Ga=d\x1b\\";
                 writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
                 fflush(stdout);
             }
             wasRendering = false;
             return 0;
+        }
+        if (!wasRendering) {
+            last_sequence = static_cast<uint64_t>(-1);
+            tlog("CONSUMER", "back_in_view resyncing_fresh");
         }
         wasRendering = true;
         
@@ -282,6 +284,7 @@ int renderFrame() {
         pendingKittyUnlink = frameSHMName;
         last_sequence = target_seq;
 
+        tlog("CONSUMER", "rendered target_seq=" + std::to_string(target_seq));
         return 1;
     }
     
@@ -291,13 +294,6 @@ int renderFrame() {
         auto frame_duration = std::chrono::duration<double>(now - frame_start_time).count();
         auto delta_from_last = last_frame_time.time_since_epoch().count() == 0 ? 0.0 : 
                                std::chrono::duration<double>(now - last_frame_time).count();
-        
-        // Print debug stats to stderr (doesn't interfere with video on stdout)
-        // std::cerr << "[CONSUMER] Seq=" << last_sequence 
-        //           << " Slot=" << last_slot 
-        //           << " Polls=" << poll_retries 
-        //           << " ReadTime=" << frame_duration*1000 << "ms"
-        //           << " Delta=" << delta_from_last*1000 << "ms" << std::endl;
         
         last_frame_time = now;
         return 1;

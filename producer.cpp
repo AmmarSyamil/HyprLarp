@@ -25,7 +25,17 @@ extern "C" {
 #include "layoutSHM.hpp"
 #include <cstring>
 #include <chrono>
+#include <fstream>
+#include "checkTerminal.hpp"
 
+// universal logging
+static void tlog(const char* tag, const std::string& msg) {
+    static std::ofstream dbg("/tmp/hyprlarp_unified.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " [" << tag << ":" << FindTerminalPID() << "] " << msg << std::endl;
+    dbg.flush();
+}
 
 // Parse ~/.config/HyprLarp.json
 std::string jsonParser() {
