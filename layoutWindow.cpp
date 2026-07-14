@@ -33,10 +33,11 @@ WindowPosCartesian ConvertPosFormat(WindowPos& DataInput) {
     WindowPosCartesian output;
 
     output.topLeft = {DataInput.at[0], DataInput.at[1]};
-    output.topRight = {DataInput.at[0], DataInput.at[1] + DataInput.size[1]};
-    output.bottomLeft = {DataInput.at[0]+DataInput.size[0], DataInput.at[1]};
+    // output.topRight = {DataInput.at[0], DataInput.at[1] + DataInput.size[1]};
+    // output.bottomLeft = {DataInput.at[0]+DataInput.size[0], DataInput.at[1]};
+    output.topRight   = {DataInput.at[0] + DataInput.size[0], DataInput.at[1]};
+    output.bottomLeft = {DataInput.at[0], DataInput.at[1] + DataInput.size[1]};
     output.bottomRight = {DataInput.at[0] + DataInput.size[0], DataInput.at[1] + DataInput.size[1]};
-
 
     return output;
 }

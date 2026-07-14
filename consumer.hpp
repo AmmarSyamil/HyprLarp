@@ -255,7 +255,6 @@ public:
             return 0;
         }
 
-
         if (frame_data_cache.empty()) {
             frame_data_cache.resize(image_size);
         }

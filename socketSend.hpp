@@ -21,3 +21,5 @@ int queryWindowAddress(const nlohmann::json& data, int address, std::string& out
 int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr);
 int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data = nullptr);
 nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID);
+
+int GetHyprlandOption(const std::string& option, nlohmann::json& output);

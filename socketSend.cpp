@@ -26,6 +26,87 @@ static void hb(const char* where) {
     dbg.flush();
 }
 
+int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
+        std::cerr << "GetHyprlandOption: socket creation failed\n";
+        return 1;
+    }
+
+    // Set timeout (same as in GetWindowsPropertiesData)
+    struct timeval tv{};
+    tv.tv_sec = 0;
+    tv.tv_usec = 200000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    // Build socket path
+    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
+
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, path.c_str());
+
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+    // Connect with non-blocking + poll (same as original)
+    int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
+    if (connection < 0) {
+        struct pollfd pfd{};
+        pfd.fd = sock;
+        pfd.events = POLLOUT;
+        int pret = poll(&pfd, 1, 200);
+        if (pret <= 0) {
+            std::cerr << "GetHyprlandOption: connect timeout\n";
+            close(sock);
+            return 1;
+        }
+        int so_error = 0;
+        socklen_t len = sizeof(so_error);
+        getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
+        if (so_error != 0) {
+            std::cerr << "GetHyprlandOption: connect error: " << strerror(so_error) << "\n";
+            close(sock);
+            return 1;
+        }
+    }
+    fcntl(sock, F_SETFL, flags);
+
+    // Send command: "getoption <option>"
+    std::string command = "j/getoption " + option;
+    if (send(sock, command.c_str(), command.size(), 0) < 0) {
+        std::cerr << "GetHyprlandOption: send failed\n";
+        close(sock);
+        return 1;
+    }
+
+    // Read response
+    std::string response;
+    char buffer[4096] = {0};
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        ssize_t bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (bytes < 0) {
+            std::cerr << "GetHyprlandOption: recv failed\n";
+            close(sock);
+            return 1;
+        }
+        if (bytes == 0) break;
+        response.append(buffer, bytes);
+        if (static_cast<size_t>(bytes) < sizeof(buffer) - 1) break;
+    }
+    close(sock);
+
+    try {
+        output = nlohmann::json::parse(response);
+    } catch (const nlohmann::json::parse_error& e) {
+        std::cerr << "GetHyprlandOption: JSON parse failed: " << e.what() << "\n";
+        return 1;
+    }
+
+    return 0;
+}
+
 //Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
 
