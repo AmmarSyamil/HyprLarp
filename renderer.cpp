@@ -13,7 +13,7 @@
 #include "terminal.hpp"
 
 
-static void hb(const char* where) {
+void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
     auto now = std::chrono::steady_clock::now().time_since_epoch();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
@@ -21,7 +21,7 @@ static void hb(const char* where) {
     dbg.flush();
 }
 
-static bool writeAll(int fd, const char* buf, size_t len) {
+bool writeAll(int fd, const char* buf, size_t len) {
     size_t written = 0;
     while (written < len) {
         ssize_t n = write(fd, buf + written, len - written);

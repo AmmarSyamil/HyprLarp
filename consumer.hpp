@@ -22,8 +22,18 @@ extern "C" {
 #include <fstream>
 #include "terminal.hpp"
 #include <chrono>
+#include "renderer.hpp"
 
+// universal logging
+static void tlog(const char* tag, const std::string& msg) {
+    static std::ofstream dbg("/tmp/hyprlarp_unified.log", std::ios::app);
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    dbg << ms << " [" << tag << "] " << msg << std::endl;
+    dbg.flush();
+}
 
+// loggin 
 static void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
     auto now = std::chrono::steady_clock::now().time_since_epoch();
@@ -153,51 +163,89 @@ public:
         }
     }
 
-    static void logRenderFrameSkip(const char* reason) {
-        static int count = 0;
-        if (++count % 60 != 0) return; // throttle
-        std::ofstream dbg("/tmp/hyprlarp_render_debug.log", std::ios::app);
-        dbg << "skip: " << reason << std::endl;
+    void logRenderFrameSkip(const char* reason, uint64_t global_seq, uint64_t target_seq) {
+        if (global_seq < target_seq) {
+            std::ofstream dbg("/tmp/hyprlarp_render_debug.log", std::ios::app);
+            dbg << "skip: " << reason << " global_seq=" << global_seq
+                << " target_seq=" << target_seq
+                << " last_sequence=" << last_sequence
+                << std::endl;
+        }
     }
 
     // use this instead
-    int renderFrame() {
+int renderFrame() {
+        // check rendering status
+        static bool wasRendering = false;
+        if (!viewPort.isRender) {
+            if (wasRendering) {
+                // Just went out of view - clear the last frame instead of leaving it stuck
+                const char* clear_seq = "\x1b_Ga=d\x1b\\";
+                writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+                fflush(stdout);
+            }
+            wasRendering = false;
+            return 0;
+        }
+        wasRendering = true;
+        
         static int frameCount = 0;
         if (++frameCount % 10 == 0) {
             refreshLayout();
         }
 
+        uint64_t global_seq = 0;
+        uint64_t target_seq = 0;
+
         controlHeader* header = reinterpret_cast<controlHeader*>(ProducerSHMPtr);
-        if (!header) { logRenderFrameSkip("no_header"); return 0; }
+        if (!header) {
+            logRenderFrameSkip("no_header", global_seq, target_seq);  // both 0, condition false
+            return 0;
+        }
 
         const uint32_t num_slots = header->num_sloth;
-        if (num_slots == 0) { logRenderFrameSkip("num_slots_zero"); return 0; }
+        if (num_slots == 0) {
+            logRenderFrameSkip("num_slots_zero", global_seq, target_seq);
+            return 0;
+        }
 
-        uint64_t global_seq = header->global_sequences.load(std::memory_order_acquire);
-        if (global_seq == 0) { logRenderFrameSkip("global_seq_zero"); return 0; }
+        global_seq = header->global_sequences.load(std::memory_order_acquire);
+        if (global_seq == 0) {
+            logRenderFrameSkip("global_seq_zero", global_seq, target_seq);
+            return 0;
+        }
 
-        uint64_t target_seq;
+        // Compute target_seq
         if (last_sequence == static_cast<uint64_t>(-1)) {
             target_seq = global_seq;
         } else {
             target_seq = last_sequence + 1;
         }
 
-        if (global_seq < target_seq) { logRenderFrameSkip("global_lt_target"); return 0; }
+        if (global_seq < target_seq) {
+            logRenderFrameSkip("global_lt_target", global_seq, target_seq);
+            return 0;
+        }
 
         if (global_seq >= target_seq + num_slots) {
-           target_seq = (global_seq > 2) ? global_seq - 2 : global_seq;
+            target_seq = (global_seq > 2) ? global_seq - 2 : global_seq;
         }
 
         const uint32_t slot = static_cast<uint32_t>(target_seq % num_slots);
         const uint64_t expected_slot_seq = target_seq * 2 + 1;
         const uint64_t slot_seq = header->slotMetadata[slot].sequence.load(std::memory_order_acquire);
 
-        if (slot_seq % 2 == 0) { logRenderFrameSkip("producer_writing"); return 0; }
-        if (slot_seq < expected_slot_seq) { logRenderFrameSkip("slot_seq_behind"); return 0; }
+        if (slot_seq % 2 == 0) {
+            logRenderFrameSkip("producer_writing", global_seq, target_seq);
+            return 0;
+        }
+        if (slot_seq < expected_slot_seq) {
+            logRenderFrameSkip("slot_seq_behind", global_seq, target_seq);
+            return 0;
+        }
         if (slot_seq > expected_slot_seq) {
             last_sequence = target_seq;
-            logRenderFrameSkip("slot_seq_ahead_skip");
+            logRenderFrameSkip("slot_seq_ahead_skip", global_seq, target_seq);
             return 0;
         }
 
@@ -206,7 +254,7 @@ public:
             frame_data_cache.resize(image_size);
         }
         if (readFrameFromSlot(ProducerSHMPtr, slot, frame_data_cache.data()) == -1) {
-            logRenderFrameSkip("read_frame_failed");
+            logRenderFrameSkip("read_frame_failed", global_seq, target_seq);
             return 0;
         }
 
@@ -215,13 +263,13 @@ public:
 
         hb("before_frame_shm_open");
         int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
-        if (fd == -1) { logRenderFrameSkip("shm_open_failed"); return 0; }
+        if (fd == -1) { logRenderFrameSkip("shm_open_failed", global_seq, target_seq); return 0; }
         ftruncate(fd, image_size);
 
         uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         close(fd);
         hb("after_frame_shm_open");
-        if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed"); return 0; }
+        if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed", global_seq, target_seq); return 0; }
 
         std::memcpy(consSHM, frame_data_cache.data(), image_size);
 
