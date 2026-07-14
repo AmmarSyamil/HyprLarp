@@ -3772,7 +3772,10 @@ public:
     }
 
     // use this instead
-int renderFrame() {
+    int renderFrame() {
+
+        refreshLayout();
+
         // check rendering status
         static bool wasRendering = false;
         if (!viewPort.isRender) {
@@ -3791,10 +3794,11 @@ int renderFrame() {
         }
         wasRendering = true;
         
-        static int frameCount = 0;
-        if (++frameCount % 10 == 0) {
-            refreshLayout();
-        }
+        // Refreash layout each 10 frames
+        // static int frameCount = 0;
+        // if (++frameCount % 10 == 0) {
+        //     refreshLayout();
+        // }
 
         uint64_t global_seq = 0;
         uint64_t target_seq = 0;
@@ -3894,13 +3898,6 @@ int renderFrame() {
         auto frame_duration = std::chrono::duration<double>(now - frame_start_time).count();
         auto delta_from_last = last_frame_time.time_since_epoch().count() == 0 ? 0.0 : 
                                std::chrono::duration<double>(now - last_frame_time).count();
-        
-        // Print debug stats to stderr (doesn't interfere with video on stdout)
-        // std::cerr << "[CONSUMER] Seq=" << last_sequence 
-        //           << " Slot=" << last_slot 
-        //           << " Polls=" << poll_retries 
-        //           << " ReadTime=" << frame_duration*1000 << "ms"
-        //           << " Delta=" << delta_from_last*1000 << "ms" << std::endl;
         
         last_frame_time = now;
         return 1;
@@ -4026,7 +4023,6 @@ int mainConsumer();
 #include <unistd.h>
 #include <string>
 #include <cstdio>
-
 #include "base64converter.hpp"
 #include <filesystem>
 #include "DataType.hpp"
@@ -4034,7 +4030,6 @@ int mainConsumer();
 #include <fstream>
 #include <cstring>
 #include "terminal.hpp"
-
 
 void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
@@ -4064,6 +4059,9 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
     if (!vp.isRender) {
         // std::cerr << "EscSequence : ViewPortState is render is set to false" << std::endl;
         return 0; 
+    }
+    if (layoutRender.w <= 0 || layoutRender.h <= 0 || layoutRender.disp_cols <= 0 || layoutRender.disp_rows <= 0) {
+        return 0;   // skip this frame
     }
 
     std::string SHMfileName = imageSHM;
@@ -4126,6 +4124,10 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
 // Version 2
 int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
     if (!vp.isRender) return 0;
+
+    if (lr.w <= 0 || lr.h <= 0 || lr.disp_cols <= 0 || lr.disp_rows <= 0) {
+        return 0;
+    }
 
     char buf[512];
     int n = snprintf(buf, sizeof(buf),
@@ -4264,6 +4266,7 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
     GetOverlap(v_x1, v_y1, v_x2, v_y2, internalTerminalGeometry, viewPort);
 
     if (!viewPort.isRender) {
+        
         return;
     }
 
@@ -4283,6 +4286,10 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
     layoutRender.w = (int)(viewPort.overlap_w * scale_x);
     layoutRender.h = (int)(viewPort.overlap_h * scale_y);
 
+    // safeguard for freaky data
+    if (layoutRender.w == 0) layoutRender.w = 1;
+    if (layoutRender.h == 0) layoutRender.h = 1;
+
     int local_pixel_x = viewPort.overlap_x - internalTerminalGeometry.grid_screen_x;
     int local_pixel_y = viewPort.overlap_y - internalTerminalGeometry.grid_screen_y;
 
@@ -4294,6 +4301,10 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
 
     layoutRender.disp_cols = (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) / internalTerminalGeometry.cell_w;
     layoutRender.disp_rows = (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) / internalTerminalGeometry.cell_h;
+
+    // safeguard for freakky ahh data
+    layoutRender.disp_cols = std::max(1, (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) / internalTerminalGeometry.cell_w);
+    layoutRender.disp_rows = std::max(1, (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) / internalTerminalGeometry.cell_h);
 }
 =========================================
  FILE: terminalLayout.hpp (Auto-located)

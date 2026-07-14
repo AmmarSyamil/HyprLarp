@@ -43,6 +43,7 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
     GetOverlap(v_x1, v_y1, v_x2, v_y2, internalTerminalGeometry, viewPort);
 
     if (!viewPort.isRender) {
+        
         return;
     }
 
@@ -62,6 +63,10 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
     layoutRender.w = (int)(viewPort.overlap_w * scale_x);
     layoutRender.h = (int)(viewPort.overlap_h * scale_y);
 
+    // safeguard for freaky data
+    if (layoutRender.w == 0) layoutRender.w = 1;
+    if (layoutRender.h == 0) layoutRender.h = 1;
+
     int local_pixel_x = viewPort.overlap_x - internalTerminalGeometry.grid_screen_x;
     int local_pixel_y = viewPort.overlap_y - internalTerminalGeometry.grid_screen_y;
 
@@ -73,4 +78,8 @@ void layoutCalculation(int v_x1, int v_y1, int v_x2, int v_y2,
 
     layoutRender.disp_cols = (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) / internalTerminalGeometry.cell_w;
     layoutRender.disp_rows = (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) / internalTerminalGeometry.cell_h;
+
+    // safeguard for freakky ahh data
+    layoutRender.disp_cols = std::max(1, (viewPort.overlap_w + internalTerminalGeometry.cell_w - 1) / internalTerminalGeometry.cell_w);
+    layoutRender.disp_rows = std::max(1, (viewPort.overlap_h + internalTerminalGeometry.cell_h - 1) / internalTerminalGeometry.cell_h);
 }

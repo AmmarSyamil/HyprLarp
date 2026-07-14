@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <string>
 #include <cstdio>
-
 #include "base64converter.hpp"
 #include <filesystem>
 #include "DataType.hpp"
@@ -11,7 +10,6 @@
 #include <fstream>
 #include <cstring>
 #include "terminal.hpp"
-
 
 void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
@@ -41,6 +39,9 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
     if (!vp.isRender) {
         // std::cerr << "EscSequence : ViewPortState is render is set to false" << std::endl;
         return 0; 
+    }
+    if (layoutRender.w <= 0 || layoutRender.h <= 0 || layoutRender.disp_cols <= 0 || layoutRender.disp_rows <= 0) {
+        return 0;   // skip this frame
     }
 
     std::string SHMfileName = imageSHM;
@@ -103,6 +104,10 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
 // Version 2
 int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
     if (!vp.isRender) return 0;
+
+    if (lr.w <= 0 || lr.h <= 0 || lr.disp_cols <= 0 || lr.disp_rows <= 0) {
+        return 0;
+    }
 
     char buf[512];
     int n = snprintf(buf, sizeof(buf),

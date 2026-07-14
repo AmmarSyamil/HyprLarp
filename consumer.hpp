@@ -171,8 +171,11 @@ public:
             << std::endl;
     }
 
-// use this instead
-int renderFrame() {
+    // use this instead
+    int renderFrame() {
+
+        refreshLayout();
+
         // check rendering status
         static bool wasRendering = false;
         if (!viewPort.isRender) {
@@ -191,10 +194,11 @@ int renderFrame() {
         }
         wasRendering = true;
         
-        static int frameCount = 0;
-        if (++frameCount % 10 == 0) {
-            refreshLayout();
-        }
+        // Refreash layout each 10 frames
+        // static int frameCount = 0;
+        // if (++frameCount % 10 == 0) {
+        //     refreshLayout();
+        // }
 
         uint64_t global_seq = 0;
         uint64_t target_seq = 0;
