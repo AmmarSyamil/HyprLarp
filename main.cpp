@@ -1,9 +1,9 @@
 // Main entry point to the program
 // main.cpp
+
+
 #include <filesystem>
 #include <iostream>
-#include <mutex>
-#include <vector>
 #include <thread>
 #include <unistd.h>
 
