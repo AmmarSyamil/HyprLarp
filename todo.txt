@@ -35,6 +35,7 @@ zamn idk where to start
 29. COmbine the layout thingy
 (v). add / clean the shm
 31. Instead of polling each frame, use the socket to detech window changes (efficientcy)
+32. use SIGWINCH + socket2 events + slow poll
 
 video :
 1. use kitty, ghossty, WezTerm

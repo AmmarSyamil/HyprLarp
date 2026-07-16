@@ -9,6 +9,7 @@
 #include <fstream>
 
 
+
 // Handle signals to ensure the cursor is shown again on exit
 static void handle_signal(int) {
     std::cout << "\033[?25h" << std::flush; // Show cursor
