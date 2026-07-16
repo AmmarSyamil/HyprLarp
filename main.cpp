@@ -1,12 +1,12 @@
-// Main entry point to the program
-// main.cpp
-
-
 #include <filesystem>
 #include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/file.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "gui.hpp"
 #include "producer.hpp"
@@ -18,6 +18,7 @@ class InstanceManager{
 private:
     int lock_fd;
     bool is_owner;
+
 public:
     explicit InstanceManager(const std::string& app_name)
         : lock_fd(-1), is_owner(false) {
@@ -113,10 +114,30 @@ int main(int argc, char* argv[]) {
             return -1;
         }
     
+        // Run both prodducer (in baground) and consumer
         if (guard.is_first_instance()) {
-            // Producer
-            mainProducer();
-            // mainConsumer();    
+            pid_t pid = fork();
+
+            if (pid == -1) {
+                std::cerr << "fork() failed\n";
+                return -1;
+            }
+
+            if (pid == 0) {
+                int devnull = open("/dev/null", O_WRONLY);
+                if (devnull != -1) {
+                    dup2(devnull, STDOUT_FILENO);
+                    dup2(devnull, STDERR_FILENO);
+                    close(devnull);
+                }
+                mainProducer();
+                _exit(0);
+
+            } else {
+                signal(SIGCHLD, SIG_IGN);
+                mainConsumer();
+            }     
+
         } else {
             // Consumer
             mainConsumer();
