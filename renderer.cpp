@@ -113,7 +113,7 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
 
     char buf[2048];
     int n = snprintf(buf, sizeof(buf),
-        "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
+    "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,C=1,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",        
         lr.cursor_row, lr.cursor_col,
         width, height,
         lr.x, lr.y, lr.w, lr.h,

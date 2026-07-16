@@ -176,13 +176,14 @@ public:
     // use this instead
     int renderFrame() {
 
-        refreshLayout();
-        if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
-        layoutRender.sub_offset_y -= -900;   // adjust this value
-        if (layoutRender.sub_offset_y < 0) {
-            layoutRender.sub_offset_y += geo.cell_h;
-        }
-    }
+
+        // refreshLayout();
+        // if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
+        // layoutRender.sub_offset_y -= -900;   // adjust this value
+        // if (layoutRender.sub_offset_y < 0) {
+        //     layoutRender.sub_offset_y += geo.cell_h;
+        // }
+        // }
         // if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
             // layoutRender.cursor_row += 1;   // move down by one row
             // std::cerr << "this" << std::endl;
@@ -206,7 +207,11 @@ public:
             if (wasRendering) {
                 tlog("CONSUMER", "went_blank last_sequence=" + std::to_string(last_sequence));
                 const char* clear_seq = "\x1b_Ga=d\x1b\\";
-                writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+                // writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+                if (!writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq))) {
+                    std::cerr << "escSequence: writeAll failed" << std::endl;
+                    return 0;
+                }
                 fflush(stdout);
             }
             wasRendering = false;

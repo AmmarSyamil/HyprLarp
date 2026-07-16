@@ -4419,6 +4419,7 @@ public:
 
     // use this instead
     int renderFrame() {
+        
 
         refreshLayout();
         if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
