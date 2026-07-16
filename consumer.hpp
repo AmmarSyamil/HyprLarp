@@ -176,8 +176,7 @@ public:
     // use this instead
     int renderFrame() {
 
-
-        // refreshLayout();
+        refreshLayout();
         // if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
         // layoutRender.sub_offset_y -= -900;   // adjust this value
         // if (layoutRender.sub_offset_y < 0) {

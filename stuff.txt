@@ -2149,29 +2149,7 @@ static void handle_signal(int) {
 void publishLayout(WorkspaceData& ws) {
     static LayoutHeader* hdr = nullptr;
     static int fd = -1;
-
-    // if (!hdr) {
-    //     fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
-    //     if (fd == -1) {
-    //         perror("publishLayout: shm_open");
-    //         return;
-    //     }
-    //     if (ftruncate(fd, sizeof(LayoutHeader)) == -1) {
-    //         perror("publishLayout: ftruncate");
-    //         return;
-    //     }
-    //     hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader),
-    //                               PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    //     close(fd);  // no longer needed after mmap
-    //     if (hdr == MAP_FAILED) {
-    //         perror("publishLayout: mmap");
-    //         hdr = nullptr;
-    //         return;
-    //     }
-    //     // Zero out the entire header on first mapping (ensures clean state)
-    //     memset(hdr, 0, sizeof(LayoutHeader));
-    // }
-
+    
     // debug test impelemntatio
     if (!hdr) {
         fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
@@ -4197,7 +4175,10 @@ int setup(int argc, char* argv[]);
 
 // Handle signals to ensure the cursor is shown again on exit
 static void handle_signal(int) {
-    std::cout << "\033[?25h" << std::flush; // Show cursor again
+    std::cout << "\033[?25h" << std::flush; // Show cursor
+    const char* clear_seq = "\x1b_Ga=d,i=1\x1b\\";
+    writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+    fflush(stdout);
     _exit(1);
 }
 
@@ -4419,15 +4400,14 @@ public:
 
     // use this instead
     int renderFrame() {
-        
 
         refreshLayout();
-        if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
-        layoutRender.sub_offset_y -= -900;   // adjust this value
-        if (layoutRender.sub_offset_y < 0) {
-            layoutRender.sub_offset_y += geo.cell_h;
-        }
-    }
+        // if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
+        // layoutRender.sub_offset_y -= -900;   // adjust this value
+        // if (layoutRender.sub_offset_y < 0) {
+        //     layoutRender.sub_offset_y += geo.cell_h;
+        // }
+        // }
         // if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
             // layoutRender.cursor_row += 1;   // move down by one row
             // std::cerr << "this" << std::endl;
@@ -4451,7 +4431,11 @@ public:
             if (wasRendering) {
                 tlog("CONSUMER", "went_blank last_sequence=" + std::to_string(last_sequence));
                 const char* clear_seq = "\x1b_Ga=d\x1b\\";
-                writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+                // writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+                if (!writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq))) {
+                    std::cerr << "escSequence: writeAll failed" << std::endl;
+                    return 0;
+                }
                 fflush(stdout);
             }
             wasRendering = false;
@@ -4801,7 +4785,7 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
 
     char buf[2048];
     int n = snprintf(buf, sizeof(buf),
-        "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
+    "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,C=1,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",        
         lr.cursor_row, lr.cursor_col,
         width, height,
         lr.x, lr.y, lr.w, lr.h,

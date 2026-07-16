@@ -11,7 +11,10 @@
 
 // Handle signals to ensure the cursor is shown again on exit
 static void handle_signal(int) {
-    std::cout << "\033[?25h" << std::flush; // Show cursor again
+    std::cout << "\033[?25h" << std::flush; // Show cursor
+    const char* clear_seq = "\x1b_Ga=d,i=1\x1b\\";
+    writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
+    fflush(stdout);
     _exit(1);
 }
 

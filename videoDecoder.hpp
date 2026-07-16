@@ -260,7 +260,9 @@ public:
         av_packet_unref(packet);
 
         int64_t timestamp = 0;
-        int ret = av_seek_frame(format_ctx, video_stream_idx, timestamp, AVSEEK_FLAG_BACKWARD);
+        // int ret = av_seek_frame(format_ctx, video_stream_idx, timestamp, AVSEEK_FLAG_BACKWARD);
+        int ret = avformat_seek_file(format_ctx, video_stream_idx, 0, 0, 0, AVSEEK_FLAG_BACKWARD);
+        avcodec_flush_buffers(codec_ctx);
         if (ret < 0) {
             std::cerr << "VideoDecoder::rewind: failed to seek to start" << std::endl;
             return false;

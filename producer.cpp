@@ -68,29 +68,7 @@ static void handle_signal(int) {
 void publishLayout(WorkspaceData& ws) {
     static LayoutHeader* hdr = nullptr;
     static int fd = -1;
-
-    // if (!hdr) {
-    //     fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
-    //     if (fd == -1) {
-    //         perror("publishLayout: shm_open");
-    //         return;
-    //     }
-    //     if (ftruncate(fd, sizeof(LayoutHeader)) == -1) {
-    //         perror("publishLayout: ftruncate");
-    //         return;
-    //     }
-    //     hdr = (LayoutHeader*)mmap(nullptr, sizeof(LayoutHeader),
-    //                               PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    //     close(fd);  // no longer needed after mmap
-    //     if (hdr == MAP_FAILED) {
-    //         perror("publishLayout: mmap");
-    //         hdr = nullptr;
-    //         return;
-    //     }
-    //     // Zero out the entire header on first mapping (ensures clean state)
-    //     memset(hdr, 0, sizeof(LayoutHeader));
-    // }
-
+    
     // debug test impelemntatio
     if (!hdr) {
         fd = shm_open("/HyprLarp_layout", O_CREAT | O_RDWR, 0600);
