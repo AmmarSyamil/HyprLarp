@@ -103,13 +103,15 @@ int escSequence(int width, int height, std::string& imageSHM, const LayoutRender
 
 // Version 2
 int escSequence(int width, int height, const std::string& b64_shm, const LayoutRender& lr, const ViewportState& vp) {
+    
+    
     if (!vp.isRender) return 0;
 
     if (lr.w <= 0 || lr.h <= 0 || lr.disp_cols <= 0 || lr.disp_rows <= 0) {
         return 0;
     }
 
-    char buf[512];
+    char buf[2048];
     int n = snprintf(buf, sizeof(buf),
         "\x1b[%d;%dH\x1b_Ga=T,f=32,t=s,d=a,i=1,q=2,s=%d,v=%d,x=%d,y=%d,w=%d,h=%d,c=%d,r=%d,X=%d,Y=%d;%s\x1b\\",
         lr.cursor_row, lr.cursor_col,
@@ -135,7 +137,9 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
         return 0;
     }
 
-    
+    // clear frame
+    const char* clear_seq = "\x1b_Ga=d,i=1\x1b\\";
+    writeAll(STDOUT_FILENO, clear_seq, strlen(clear_seq));
 
     hb("before_write");
     if (!writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n))) {

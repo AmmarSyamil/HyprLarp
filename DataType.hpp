@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <unordered_set>
 // #include "simdjson.h"
+#include "checkTerminal.hpp"
 
 struct WindowPos {
     std::vector<int> at; // x/y

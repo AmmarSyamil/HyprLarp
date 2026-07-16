@@ -25,6 +25,7 @@ extern "C" {
 #include "renderer.hpp"
 #include <thread>
 
+
 // universal logging
 static void tlog(const char* tag, const std::string& msg) {
     static std::ofstream dbg("/tmp/hyprlarp_unified.log", std::ios::app);
@@ -45,7 +46,8 @@ static void hb(const char* where) {
 
 class consumer
 {
-private:
+    private:
+    InternalTerminalGeometry geo;
     std::string BaseSHMName;
     std::string pendingKittyUnlink;
     LayoutRender layoutRender;
@@ -77,7 +79,7 @@ public:
     // test debug
     pid_t terminalPid = 0;
     bool refreshLayout() {
-        return computeConsumerLayout(terminalPid, width, height, layoutRender, viewPort);
+        return computeConsumerLayout(terminalPid, width, height, layoutRender, viewPort, geo);
     }
 
     // Enable debug mode (shows timing stats instead of video)
@@ -86,7 +88,7 @@ public:
 
     // Create unique filename for SHM to differentiate SHM file from different frame and different terminal
     int setupSHMfileName(int currectFrame) {
-        pid = getpid();
+        pid = FindTerminalPID();
         frame = currectFrame;
         std::string fileNameSHM = "HyprLarp:" + std::to_string(pid) + ":" + std::to_string(frame);
         SHMfileName = fileNameSHM;
@@ -175,18 +177,28 @@ public:
     int renderFrame() {
 
         refreshLayout();
+        if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
+        layoutRender.sub_offset_y -= -900;   // adjust this value
+        if (layoutRender.sub_offset_y < 0) {
+            layoutRender.sub_offset_y += geo.cell_h;
+        }
+    }
+        // if (viewPort.overlap_y == 320 && layoutRender.cursor_col == 64) {
+            // layoutRender.cursor_row += 1;   // move down by one row
+            // std::cerr << "this" << std::endl;
+        // }
 
-        std::cerr << "PID=" << getpid()
-              << " cursor_row=" << layoutRender.cursor_row
-              << " cursor_col=" << layoutRender.cursor_col
-              << " sub_offset_y=" << layoutRender.sub_offset_y
-              << " sub_offset_x=" << layoutRender.sub_offset_x
-              << " disp_rows=" << layoutRender.disp_rows
-              << " disp_cols=" << layoutRender.disp_cols
-              << " overlap_y=" << viewPort.overlap_y
-              << " cell_h=" << cell_h
-              << " grid_screen_y=" << grid_screen_y
-              << std::endl;
+        // std::cerr << "PID=" << FindTerminalPID()
+        //     << " cursor_row=" << layoutRender.cursor_row
+        //     << " cursor_col=" << layoutRender.cursor_col
+        //     << " sub_offset_y=" << layoutRender.sub_offset_y
+        //     << " sub_offset_x=" << layoutRender.sub_offset_x
+        //     << " disp_rows=" << layoutRender.disp_rows
+        //     << " disp_cols=" << layoutRender.disp_cols
+        //     << " overlap_y=" << viewPort.overlap_y
+        //     << " cell_h=" << geo.cell_h
+        //     << " grid_screen_y=" << geo.grid_screen_y
+        //       << std::endl;
 
         // check rendering status
         static bool wasRendering = false;
@@ -408,7 +420,7 @@ public:
         // return true;
 
         // debug test
-        return computeConsumerLayout(FindTerminalPID(), width, height, layoutRender, viewPort);
+        return computeConsumerLayout(terminalPid, width, height, layoutRender, viewPort, geo);
     }
 
     // Function to setup the class
@@ -417,7 +429,7 @@ public:
         ProducerSHMPtr = openSHM();
         if (!ProducerSHMPtr) return false;
 
-        BaseSHMName = "HyprLarp_" + std::to_string(getpid());
+        BaseSHMName = "HyprLarp_" + std::to_string(FindTerminalPID());
 
         terminalPid = FindTerminalPID();
         return refreshLayout();   // or fetchLayout()
