@@ -124,19 +124,20 @@ int main(int argc, char* argv[]) {
             }
 
             if (pid == 0) {
-                int devnull = open("/dev/null", O_WRONLY);
-                if (devnull != -1) {
-                    dup2(devnull, STDOUT_FILENO);
-                    dup2(devnull, STDERR_FILENO);
-                    close(devnull);
+                int devnull_out = open("/dev/null", O_WRONLY);
+                int devnull_in = open("/dev/null", O_RDONLY);
+                if (devnull_out != -1) {
+                    dup2(devnull_out, STDOUT_FILENO);
+                    dup2(devnull_out, STDERR_FILENO);
+                    close(devnull_out);
+                }
+                if (devnull_in != -1) {
+                    dup2(devnull_in, STDIN_FILENO);
+                    close(devnull_in);
                 }
                 mainProducer();
                 _exit(0);
-
-            } else {
-                signal(SIGCHLD, SIG_IGN);
-                mainConsumer();
-            }     
+            }
 
         } else {
             // Consumer

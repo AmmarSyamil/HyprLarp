@@ -16,14 +16,90 @@
 #include <fstream>
 #include <fcntl.h>
 #include <poll.h>
-//Function that being called
+#include <cstring>
+#include <cerrno>
 
+// Function that being called
 static void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
     auto now = std::chrono::steady_clock::now().time_since_epoch();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
     dbg << ms << " " << where << std::endl;
     dbg.flush();
+}
+
+static int connect_hyprland_socket(int sock, const std::string& path) {
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, path.c_str());
+
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+    int conn = connect(sock, (sockaddr*)&addr, sizeof(addr));
+    if (conn == 0) {
+        // Connected immediately
+        fcntl(sock, F_SETFL, flags);
+        return 0;
+    }
+
+    if (errno != EINPROGRESS) {
+        return -1;
+    }
+
+    struct pollfd pfd{ sock, POLLOUT, 0 };
+    int pret = poll(&pfd, 1, 200);  // 200 ms timeout
+    if (pret <= 0) {
+        return -1;
+    }
+
+    int so_error = 0;
+    socklen_t len = sizeof(so_error);
+    getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
+    if (so_error != 0) {
+        return -1;
+    }
+
+    fcntl(sock, F_SETFL, flags);
+    return 0;
+}
+
+static int send_and_receive_json(int sock, const std::string& cmd, std::string& response, int timeout_ms = 200) {
+    // Send
+    if (send(sock, cmd.c_str(), cmd.size(), 0) < 0) {
+        return -1;
+    }
+
+    // Receive with poll
+    char buffer[4096];
+    response.clear();
+
+    while (true) {
+        struct pollfd pfd{ sock, POLLIN, 0 };
+        int pret = poll(&pfd, 1, timeout_ms);
+        if (pret <= 0) {
+            return -1;   // timeout or error
+        }
+
+        ssize_t n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) continue; // should not happen after poll
+            return -1;
+        }
+        if (n == 0) {
+            // peer closed, but we might have partial data? assume done
+            break;
+        }
+        buffer[n] = '\0';
+        response.append(buffer, n);
+
+        // If we got less than the buffer size, assume the message is complete
+        if (static_cast<size_t>(n) < sizeof(buffer) - 1) {
+            break;
+        }
+    }
+
+    return 0;
 }
 
 int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
@@ -33,68 +109,23 @@ int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
         return 1;
     }
 
-    // Set timeout (same as in GetWindowsPropertiesData)
-    struct timeval tv{};
-    tv.tv_sec = 0;
-    tv.tv_usec = 200000;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" +
+                       getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
 
-    // Build socket path
-    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
-
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    strcpy(addr.sun_path, path.c_str());
-
-    int flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-
-    // Connect with non-blocking + poll (same as original)
-    int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
-    if (connection < 0) {
-        struct pollfd pfd{};
-        pfd.fd = sock;
-        pfd.events = POLLOUT;
-        int pret = poll(&pfd, 1, 200);
-        if (pret <= 0) {
-            std::cerr << "GetHyprlandOption: connect timeout\n";
-            close(sock);
-            return 1;
-        }
-        int so_error = 0;
-        socklen_t len = sizeof(so_error);
-        getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
-        if (so_error != 0) {
-            std::cerr << "GetHyprlandOption: connect error: " << strerror(so_error) << "\n";
-            close(sock);
-            return 1;
-        }
-    }
-    fcntl(sock, F_SETFL, flags);
-
-    // Send command: "getoption <option>"
-    std::string command = "j/getoption " + option;
-    if (send(sock, command.c_str(), command.size(), 0) < 0) {
-        std::cerr << "GetHyprlandOption: send failed\n";
+    if (connect_hyprland_socket(sock, path) != 0) {
+        std::cerr << "GetHyprlandOption: connect failed\n";
         close(sock);
         return 1;
     }
 
-    // Read response
+    std::string command = "j/getoption " + option;
     std::string response;
-    char buffer[4096] = {0};
-    while (true) {
-        memset(buffer, 0, sizeof(buffer));
-        ssize_t bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
-        if (bytes < 0) {
-            std::cerr << "GetHyprlandOption: recv failed\n";
-            close(sock);
-            return 1;
-        }
-        if (bytes == 0) break;
-        response.append(buffer, bytes);
-        if (static_cast<size_t>(bytes) < sizeof(buffer) - 1) break;
+    if (send_and_receive_json(sock, command, response, 200) != 0) {
+        std::cerr << "GetHyprlandOption: send/recv failed\n";
+        close(sock);
+        return 1;
     }
+
     close(sock);
 
     try {
@@ -106,6 +137,51 @@ int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
 
     return 0;
 }
+
+int GetWindowsPropertiesData(nlohmann::json& outputData) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
+        std::cerr << "Socket sends (.sock) connection failed at making sock\n";
+        return 1;
+    }
+
+    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" +
+                       getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
+
+    hb("before_connect");
+    if (connect_hyprland_socket(sock, path) != 0) {
+        hb("after_connect_error");
+        std::cerr << "GetWindowsPropertiesData: connect failed\n";
+        close(sock);
+        return 1;
+    }
+    hb("after_connect");
+
+    std::string response;
+    if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
+        std::cerr << "GetWindowsPropertiesData: send/recv failed\n";
+        close(sock);
+        return 1;
+    }
+    hb("after_recv");
+
+    close(sock);
+
+    if (response.empty()) {
+        std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
+        return 1;
+    }
+
+    try {
+        outputData = nlohmann::json::parse(response);
+    } catch (const nlohmann::json::parse_error& e) {
+        std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
+        return 1;
+    }
+
+    return 0;
+}
+
 
 //Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
@@ -190,140 +266,6 @@ int queryWorkspaceId(const nlohmann::json data, std::string address) {
     return -1;
 }
 
-// Actually it called clients  { clients - lists all windows with their properties }
-// Runs similarly wiht hyprctl clients -j
-int GetWindowsPropertiesData(nlohmann::json& outputData) {
-    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    if (sock < 0) {
-        std::cerr << "Socket sends (.sock) connection failed at making sock\n";
-        return 1;
-    }
-
-    struct timeval tv{};
-    tv.tv_sec = 0;
-    tv.tv_usec = 200000; // 200ms
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    // Get socket path
-    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
-
-    // Make the sockaddr_un stuff
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    strcpy(addr.sun_path, path.c_str());
-
-    int flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-
-    // Connect to the socket
-    hb("before_connect");
-    int connection = connect(sock, (sockaddr*)&addr, sizeof(addr));
-    if (connection < 0) {
-        std::cerr << "Socket connection failed at connecting for socket sends";
-        close(sock);
-        return 1;
-    }
-    if (connection < 0) { // EINPROGRESS - wait for it to complete, bounded
-        struct pollfd pfd{};
-        pfd.fd = sock;
-        pfd.events = POLLOUT;
-        int pret = poll(&pfd, 1, 200); // 200ms bound, matching the recv timeout
-
-        if (pret <= 0) {
-            hb("after_connect_timeout");
-            std::cerr << "GetWindowsPropertiesData: connect() timed out\n";
-            close(sock);
-            return 1;
-        }
-
-        int so_error = 0;
-        socklen_t len = sizeof(so_error);
-        getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
-        if (so_error != 0) {
-            hb("after_connect_error");
-            std::cerr << "GetWindowsPropertiesData: connect() failed: " << strerror(so_error) << "\n";
-            close(sock);
-            return 1;
-        }
-    }
-    hb("after_connect");
-
-    // Restore stuff
-    fcntl(sock, F_SETFL, flags);
-
-    // Data to send
-    std::string dataSend = "j/clients";
-    int sendsConnection = send(sock, dataSend.c_str(), dataSend.size(), 0);
-    if (sendsConnection < 0) {
-        std::cerr << "Error at sending data socket";
-        close(sock);
-        return 1;
-    }
-
-    // Data for the result
-    std::string jsonData{};
-    char buffer[4096] = {0};
-
-    // recv loop
-    hb("before_recv");
-    while (true) {
-        memset(buffer, 0, sizeof(buffer));
-        ssize_t bytesReceived = recv(sock, buffer, sizeof(buffer) - 1, 0);
-
-        if (bytesReceived < 0) {
-            // Timed out (EAGAIN/EWOULDBLOCK) or a real error — either way,
-            // don't try to parse a partial response.
-            std::cerr << "GetWindowsPropertiesData: recv timed out or failed\n";
-            close(sock);
-            return 1;
-        }
-        if (bytesReceived == 0) {
-            break; // peer closed, normal end of message
-        }
-
-        jsonData.append(buffer, static_cast<size_t>(bytesReceived));
-
-        if (static_cast<size_t>(bytesReceived) < sizeof(buffer) - 1) {
-            break;
-        }
-    }
-    hb("after_recv");
-
-    close(sock);
-    if (jsonData.empty()) {
-        std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
-        return 1;
-    }
-
-    // Parse data — guard against malformed/partial JSON so a bad read
-    // can't throw an uncaught exception out of the render loop.
-    try {
-        outputData = nlohmann::json::parse(jsonData);
-    } catch (const nlohmann::json::parse_error& e) {
-        std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
-        return 1;
-    }
-
-    return 0;
-}
-
-
-// Function that called other function
-
-
-// this function have no uses
-// Maybe deprecate it later
-// Using windows address to find window position and size
-// int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, nlohmann::json& data) {
-    
-//     dataMutex.lock();
-//     int result = queryPosWindow(data, address, outputData);
-//     dataMutex.unlock();
-
-//     return result;
-// }
-
 // Using PID address to find windows address
 int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr) {
     if (!data) {
@@ -381,30 +323,3 @@ nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) 
 
     return output;
 }
-
-// Testing grounds
-// int main() {
-//     std::string address{};
-//     std::mutex dataMutex;
-//     std::string outputData{};
-//         std::vector<std::vector<int>> outputData2{};
-        
-//         int pid = 1810;
-        
-//         // address = "0x562adcc61790";
-        
-//         int test = SocketSendConnection(pid, dataMutex, outputData);
-        
-//         address = outputData;
-//         //test
-//         std::cout << outputData << std::endl;
-        
-//         int test2 = SocketSendConnection(address, dataMutex, outputData2);
-        
-//         if (!outputData2.empty() && outputData2.size() >= 2 && outputData2[0].size() >= 2 && outputData2[1].size() >= 2) {
-//             std::cout << "Position: " << outputData2[0][0] << ", " << outputData2[0][1] << std::endl;
-//             std::cout << "Size: " << outputData2[1][0] << ", " << outputData2[1][1] << std::endl;
-//         }
-
-//     return 1;
-// }

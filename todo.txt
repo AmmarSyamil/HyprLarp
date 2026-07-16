@@ -16,25 +16,25 @@ zamn idk where to start
 (v). instead of few specializied function make it full type.'
 (v). use the cartesian coordinate converter for the windows
 (v). we can add feature to chcekc what terminal is it, like what emulator/shell, by recursively scan previous of hte tree until we got the terminal emulator scripting type shit.
-13. Use the WorkspaceData as parameter to must of socket function
-14. Finish the DataType.hpp for the refresh data function
+(?). Use the WorkspaceData as parameter to must of socket function
+(V). Finish the DataType.hpp for the refresh data function
 (V). USE PID INSTEAD of tittle shit to find window ID
 16. Implement the  correct naming of the SHM
 17. in getImageSHM fix the vector return error thingy.
 (V). Add implementation of custom Base64 for custum SHM name cuz im lazy rn
-19. add implementation of the dynamic resolution video cuz im very lazy and hungry rn
+(-). add implementation of the dynamic resolution video cuz im very lazy and hungry rn
 (V). ADD delete of the SHM File of the consumer.cpp 
 (V). fix SHM not deleting at exit
-22. Use current cursor location, instead of top left, but maybe not
+(?). Use current cursor location, instead of top left, but maybe not
 23. Add audio support from the producer
-24. add video path modularity in DataType.hppp in theres siawfoijweeoi weeo
+(v). add video path modularity in DataType.hppp in theres siawfoijweeoi weeo
 25. Add universal videodata, either in the consumer / or producer
-26. what if the config isnt yet built
+(v). what if the config isnt yet built
 27. use std::runtime_error // clean debug // clean error logging
-( v ). CHange /vp_static into /HyprLarp-Producer
+(v). CHange /vp_static into /HyprLarp-Producer
 29. COmbine the layout thingy
-30. add / clean the shm
-
+(v). add / clean the shm
+31. Instead of polling each frame, use the socket to detech window changes (efficientcy)
 
 video :
 1. use kitty, ghossty, WezTerm
