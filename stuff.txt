@@ -3,24 +3,18 @@
 =========================================
 // Main entry point to the program
 // main.cpp
+
+
 #include <filesystem>
 #include <iostream>
-#include <mutex>
-#include <vector>
-#include <thread>
 #include <unistd.h>
-
-#include "socketSend.hpp"
-#include "socketReceive.hpp"
-#include "tools.hpp"
-#include "checkTerminal.hpp"
-#include "DataType.hpp"
 #include <fcntl.h>
 #include <sys/file.h>
 
 #include "gui.hpp"
 #include "producer.hpp"
 #include "consumer.hpp"
+#include "checkTerminal.hpp"
 
 // Class to determine wether this instance will runned as consumer or producer
 class InstanceManager{
@@ -37,7 +31,6 @@ public:
         // Open (or create) the lock file
         lock_fd = open(path.c_str(), O_CREAT | O_RDWR, 0666);
         if (lock_fd == -1) {
-            // Can't open file // treat as non‑owner (safe fallback)
             return;
         }
 
@@ -75,47 +68,37 @@ int main(int argc, char* argv[]) {
         InstanceManager guard("HyprLarp");
         
         // Check wether it was run via terminal or not
+        if (isTerminalKitty() == -1) {
+            std::cerr << "Process currently run in non Kitty terminal, please try again using Kitty terminal." << std::endl;
+            return -1;
+        }
         
-    
-        // initialized the WindowData type
-        // WorkspaceData Data;
-    
-        // // Check systme terminal emulator
-        
-        // // No need actually, this is past uses
-        // // Get PID of the process
-        // // pid_t pid = getpid();
-    
-        // // Get all terminal window from that workspace
-        // std::cout << "initialize object done" << std::endl;
-        // Data.FetchWindowID();
-        // main terminal is mentioned twice
-    //     std::cout << "fetch window done" << std::endl;
-    
-    //     std::cout << Data;
-    
-        // Create workspacedata
-    
         // CLI
         if (argc > 1)
         {
             std::string arg = argv[1];
     
-            if (arg == "--gui")
+            if (arg == "--setting" or arg == "-s")
             {
                 // Open GUI
                 setup(argc, argv);
                 return 0;
             }
+
+            if (arg == "--producer" or arg == "-p") {
+                mainProducer();
+                return 0;
+            }
     
-            if (arg == "--help")
+            if (arg == "--help" or arg == "-h")
             {
                 std::cout << "HyprLarp. Tools to Larp more efficiently." << std::endl;
                 std::cout << "usage : HyprLarp [-h] [--gui]" << std::endl;
                 std::cout << "" << std::endl;
                 std::cout << "options:" << std::endl;
-                std::cout << "  -h, --help      show this message and exit" << std::endl;
-                std::cout << "  -g, --gui       Launch GUI setting to setup ~/.config/HyprLarp.json" << std::endl;
+                std::cout << "  -h, --help      Show this message and exit" << std::endl;
+                std::cout << "  -s, --setting   Launch configuration GUI tools to setup the config file (~/.config/HyprLarp.json)" << std::endl;
+                std::cout << "  -p, --producer  Launch HyprLarp producer process only with their logs." << std::endl;
                 return 0;
             }
         }
@@ -129,15 +112,14 @@ int main(int argc, char* argv[]) {
 
         std::filesystem::path configPath = std::filesystem::path(homeDir) / ".config/HyprLarp.json";
         if (!std::filesystem::exists(configPath)) {
-            std::cerr << "Failed to find config file, make sure " << configPath
-                    << " exists by running Hyprlarp --gui" << std::endl;
+            std::cerr << "Failed to find config file, make sure " << configPath << " exists by running Hyprlarp --gui" << std::endl;
             return -1;
         }
     
         if (guard.is_first_instance()) {
             // Producer
             mainProducer();
-    
+            // mainConsumer();    
         } else {
             // Consumer
             mainConsumer();
@@ -147,7 +129,6 @@ int main(int argc, char* argv[]) {
         std::cerr << "HyprLarp Failed to launch " << e.what() << std::endl;
     }
 
-    
     return 1;
 }
 =========================================
@@ -1568,6 +1549,7 @@ public:
 //Use to check if the executable was run in terminal or not and what terminal is it
 // checkTerminal.cpp
 #include <iostream>
+#include <sys/types.h>
 #include <unistd.h>
 #include <string>
 #include <fstream>
@@ -1654,12 +1636,26 @@ pid_t FindTerminalPID() {
 
         std::string name = GetProcessName(pid);
 
-//         std::cout << "PID: " << pid
-//                 << " NAME: [" << name << "]\n";
-
         if (terminals.contains(name)) {
-//             std::cout << "FOUND TERMINAL\n";
             return pid;
+        }
+
+        pid = GetParentPID(pid);
+    }
+
+    return -1;
+}
+
+
+// Check wether the current procces run from kitty terminal or not
+int isTerminalKitty() {
+    pid_t pid = getpid();
+
+    while (pid > 1) {
+        std::string name = GetProcessName(pid);
+
+        if ("kitty" == name) {
+            return 1;
         }
 
         pid = GetParentPID(pid);
@@ -1671,16 +1667,10 @@ pid_t FindTerminalPID() {
 
 // Is terminal return 1, not terminal return 0.
 int IsPIDTerminal(pid_t pid) {
-
     while (pid > 1) {
-
         std::string name = GetProcessName(pid);
 
-//         std::cout << "PID: " << pid
-//                 << " NAME: [" << name << "]\n";
-
         if (terminals.contains(name)) {
-//             std::cout << "FOUND TERMINAL\n";
             return 1;
         }
 
@@ -1705,6 +1695,8 @@ int checkTerminalWhichCurrentlyRunOn();
 pid_t FindTerminalPID();
 
 int IsPIDTerminal(pid_t pid);
+
+int isTerminalKitty();
 =========================================
  FILE: terminal.cpp
 =========================================
@@ -3092,6 +3084,7 @@ int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer
 #include <QCursor>
 #include <QRegion>
 #include <QFont>
+#include <QFontMetrics>
 #include <QMouseEvent>
 #include <QMoveEvent>
 #include <QResizeEvent>
@@ -3104,12 +3097,107 @@ int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer
 #include <QDebug>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QShortcut>
+#include <QStatusBar>
+#include <QFrame>
+#include <QPainterPath>
+#include <QRadialGradient>
+#include <QGraphicsDropShadowEffect>
 
 #include <opencv2/opencv.hpp>
 #include <cmath>
 #include <algorithm>
 
-// Utility functions
+// ─────────────────────────────────────────────
+//  Style Constants (Warm Espresso Theme)
+// ─────────────────────────────────────────────
+static const char* kAppQSS = R"(
+    QMainWindow, QWidget#CentralWidget { background-color: #161312; }
+    
+    QWidget#HeaderWidget {
+        background-color: #242020;
+        border-bottom: 2px solid #5c4a42;
+    }
+    QWidget#FooterWidget {
+        background-color: #242020;
+        border-top: 2px solid #5c4a42;
+    }
+
+    QLabel { color: #f0e6d2; }
+
+    QLabel#AppTitle {
+        font-size: 20px;
+        font-weight: bold;
+        color: #ffffff;
+        padding: 2px 0px;
+    }
+    QLabel#AppSubtitle {
+        font-size: 12px;
+        color: #a89888;
+        padding-bottom: 4px;
+    }
+    QLabel#FilePathLabel {
+        font-size: 13px;
+        font-weight: bold;
+        color: #d9a05b;
+        padding-bottom: 6px;
+    }
+
+    QPushButton {
+        background-color: #3a322c;
+        color: #f0e6d2;
+        border: 1px solid #5c4a42;
+        border-radius: 6px;
+        padding: 8px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        min-width: 80px;
+    }
+    QPushButton:hover {
+        background-color: #4a3f37;
+        border-color: #8c7a6e;
+        color: #ffffff;
+    }
+    QPushButton:pressed {
+        background-color: #2a2522;
+    }
+
+    QPushButton#PrimaryBtn {
+        background-color: #3a6b38;
+        border: 1px solid #4d8a4a;
+        color: #ffffff;
+    }
+    QPushButton#PrimaryBtn:hover {
+        background-color: #4d8a4a;
+        border-color: #63a660;
+    }
+    QPushButton#PrimaryBtn:pressed {
+        background-color: #2d572c;
+    }
+
+    QPushButton#DangerBtn {
+        background-color: #3a322c;
+        border: 1px solid #8a2d2d;
+        color: #e57373;
+    }
+    QPushButton#DangerBtn:hover {
+        background-color: #4a2a2a;
+        border-color: #b34141;
+        color: #ff8a8a;
+    }
+
+    QStatusBar {
+        background-color: #161312;
+        color: #a89888;
+        border-top: 1px solid #2a2522;
+        font-size: 12px;
+    }
+    QStatusBar::item { border: none; }
+)";
+
+// ─────────────────────────────────────────────
+//  Utility functions  (unchanged)
+// ─────────────────────────────────────────────
 QSize getMonitorResolution() {
     QScreen* screen = QApplication::primaryScreen();
     if (screen) {
@@ -3136,7 +3224,9 @@ QString getConfigPath() {
     return configDir + "/HyprLarp.json";
 }
 
-// VideoArea Implementation
+// ═════════════════════════════════════════════
+//  VideoArea Implementation
+// ═════════════════════════════════════════════
 VideoArea::VideoArea(QSize monitorRatio_, QSize videoRatio_, QWidget* parent)
     : QWidget(parent),
       monitorRatio(monitorRatio_),
@@ -3152,6 +3242,7 @@ VideoArea::VideoArea(QSize monitorRatio_, QSize videoRatio_, QWidget* parent)
       realRect(0, 0, 0, 0)
 {
     setMouseTracking(true);
+    setAttribute(Qt::WA_Hover, true);
 }
 
 void VideoArea::updateRealGeometry() {
@@ -3208,21 +3299,84 @@ QString VideoArea::checkCornerHover(const QPoint& pos) const {
 
 void VideoArea::paintEvent(QPaintEvent*) {
     QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // ── Fill ──
     painter.fillRect(rect(), QBrush(bgColor));
+
+    // ── Crosshair guides during resize ──
+    if (resizing && !activeCorner.isEmpty()) {
+        QPoint ac = getCornerCenter(activeCorner);
+        painter.setPen(QPen(QColor(255, 255, 0, 70), 1, Qt::DashLine));
+        painter.drawLine(0, ac.y(), width(), ac.y());
+        painter.drawLine(ac.x(), 0, ac.x(), height());
+    }
+
+    // ── Center-alignment guides during drag ──
+    if (dragging && parent()) {
+        WorkspaceArea* ws = static_cast<WorkspaceArea*>(parent());
+        QPoint wsCenter = mapFromParent(ws->currentWorkspaceRect.center());
+        QRect  r = rect();
+        if (std::abs(r.center().x() - wsCenter.x()) <= 6) {
+            painter.setPen(QPen(QColor(0, 255, 120, 160), 2));
+            painter.drawLine(wsCenter.x(), 0, wsCenter.x(), height());
+        }
+        if (std::abs(r.center().y() - wsCenter.y()) <= 6) {
+            painter.setPen(QPen(QColor(0, 255, 120, 160), 2));
+            painter.drawLine(0, wsCenter.y(), width(), wsCenter.y());
+        }
+    }
+
+    // ── Border ──
     painter.setPen(QPen(borderColor, 2));
+    painter.setBrush(Qt::NoBrush);
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 
+    // ── Dimension badge during interaction ──
+    if (dragging || resizing) {
+        QFont badgeFont("Segoe UI", 9);
+        badgeFont.setBold(true);
+        painter.setFont(badgeFont);
+        QString info = QString("%1×%2  (×%3)")
+            .arg(realRect.width()).arg(realRect.height())
+            .arg(currentScale, 0, 'f', 2);
+        QFontMetrics fm(badgeFont);
+        int tw = fm.horizontalAdvance(info) + 14;
+        int th = fm.height() + 6;
+        QRect badge(QPoint(4, 4), QSize(tw, th));
+        painter.setBrush(QBrush(QColor(0, 0, 0, 210)));
+        painter.setPen(QPen(QColor(255, 255, 0, 120), 1));
+        painter.drawRoundedRect(badge, 4, 4);
+        painter.setPen(QColor(255, 255, 0));
+        painter.drawText(badge, Qt::AlignCenter, info);
+    }
+
+    // ── Corner handles with glow ──
     QStringList corners = {"TL", "TR", "BL", "BR"};
     for (const QString& name : corners) {
-        int radius = handleRadius;
-        if (hoveredCorner == name) {
-            radius = handleRadiusHover;
-        }
+        bool active = (hoveredCorner == name) || (activeCorner == name);
+        int radius  = active ? handleRadiusHover : handleRadius;
         QPoint center = getCornerCenter(name);
+
+        // Glow halo
+        if (active) {
+            QRadialGradient glow(center, radius * 2.5);
+            glow.setColorAt(0.0, QColor(255, 255, 0, 90));
+            glow.setColorAt(1.0, QColor(255, 255, 0, 0));
+            painter.setBrush(QBrush(glow));
+            painter.setPen(Qt::NoPen);
+            painter.drawEllipse(center, (int)(radius * 2.5), (int)(radius * 2.5));
+        }
+
+        // Handle body
         painter.setBrush(QBrush(handleColor));
-        painter.setPen(Qt::NoPen);
+        painter.setPen(QPen(QColor(0, 0, 0, 200), 1));
         painter.drawEllipse(center, radius, radius);
+
+        // Inner dot
+        painter.setBrush(QBrush(QColor(180, 140, 0)));
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(center, radius / 3, radius / 3);
     }
 }
 
@@ -3299,6 +3453,7 @@ void VideoArea::mouseReleaseEvent(QMouseEvent* event) {
     }
 }
 
+// ── Calculation: UNCHANGED ──
 void VideoArea::performResize(const QPoint& currentPos) {
     QRect currentGeo = geometry();
     QPoint center = currentGeo.center();
@@ -3363,7 +3518,9 @@ void VideoArea::resetGeometry(const QRect& rect) {
     update();
 }
 
-// WorkspaceArea Implementation
+// ═════════════════════════════════════════════
+//  WorkspaceArea Implementation
+// ═════════════════════════════════════════════
 WorkspaceArea::WorkspaceArea(QSize displayRatio_, QSize videoRatio_, QWidget* parent)
     : QWidget(parent),
       displayRatio(displayRatio_),
@@ -3375,12 +3532,14 @@ WorkspaceArea::WorkspaceArea(QSize displayRatio_, QSize videoRatio_, QWidget* pa
       videoBaseSize(0, 0)
 {
     setMinimumSize(200, 150);
+    setObjectName("WorkspaceArea");
 }
 
 void WorkspaceArea::resizeEvent(QResizeEvent*) {
     updateLayout();
 }
 
+// ── Layout calculation: UNCHANGED ──
 void WorkspaceArea::updateLayout() {
     int parentW = width();
     int parentH = height();
@@ -3480,34 +3639,137 @@ void WorkspaceArea::updateDebugInfo() {
         int vw = videoRatio.width();
         int vh = videoRatio.height();
         double scale = videoArea->currentScale;
-        QString msg = QString("Monitor: %1x%2\nVideo: %3x%4\nScale: x%5")
+
+        QRect rr = videoArea->realRect;
+        QString msg = QString(
+            "Monitor: %1×%2    Video: %3×%4    Scale: ×%5\n"
+            "Real pos: %6, %7    Real size: %8×%9")
             .arg(displayRatio.width()).arg(displayRatio.height())
             .arg(vw).arg(vh)
-            .arg(scale, 0, 'f', 2);
+            .arg(scale, 0, 'f', 2)
+            .arg(rr.x()).arg(rr.y())
+            .arg(rr.width()).arg(rr.height());
+
         debugLabel->setText(msg);
         debugLabel->adjustSize();
-        debugLabel->move(5, height() - debugLabel->height() - 5);
+        debugLabel->move(8, height() - debugLabel->height() - 8);
+    }
+
+    // ── Status bar update ──
+    QWidget* p = parentWidget();
+    while (p) {
+        QMainWindow* mw = qobject_cast<QMainWindow*>(p);
+        if (mw && mw->statusBar()) {
+            if (videoArea) {
+                mw->statusBar()->showMessage(QString("Video: %1×%2   |   Scale: ×%3   |   Real: %4,%5  %6×%7")
+                    .arg(videoRatio.width()).arg(videoRatio.height())
+                    .arg(videoArea->currentScale, 0, 'f', 2)
+                    .arg(videoArea->realRect.x()).arg(videoArea->realRect.y())
+                    .arg(videoArea->realRect.width()).arg(videoArea->realRect.height()));
+            } else {
+                mw->statusBar()->showMessage("No video loaded — press Ctrl+O to open one.");
+            }
+            break;
+        }
+        p = p->parentWidget();
     }
 }
 
 void WorkspaceArea::paintEvent(QPaintEvent*) {
     QPainter painter(this);
-    painter.fillRect(currentWorkspaceRect, QBrush(QColor(0, 255, 0, 20)));
-    painter.setPen(QPen(QColor(0, 255, 0), 2));
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // ── Workspace background ──
+    painter.fillRect(currentWorkspaceRect, QBrush(QColor(0, 255, 0, 12)));
+
+    // ── Grid lines (10×10) ──
+    painter.setPen(QPen(QColor(0, 255, 0, 25), 1));
+    int steps = 10;
+    for (int i = 1; i < steps; i++) {
+        int x = currentWorkspaceRect.x() + (currentWorkspaceRect.width()  * i) / steps;
+        int y = currentWorkspaceRect.y() + (currentWorkspaceRect.height() * i) / steps;
+        painter.drawLine(x, currentWorkspaceRect.top(),    x, currentWorkspaceRect.bottom());
+        painter.drawLine(currentWorkspaceRect.left(),  y, currentWorkspaceRect.right(), y);
+    }
+
+    // ── Center crosshair ──
+    painter.setPen(QPen(QColor(0, 255, 0, 50), 1, Qt::DashLine));
+    QPoint c = currentWorkspaceRect.center();
+    painter.drawLine(currentWorkspaceRect.left(),  c.y(), currentWorkspaceRect.right(), c.y());
+    painter.drawLine(c.x(), currentWorkspaceRect.top(),   c.x(), currentWorkspaceRect.bottom());
+
+    // ── Border ──
+    painter.setPen(QPen(QColor(0, 255, 0, 180), 2));
+    painter.setBrush(Qt::NoBrush);
     painter.drawRect(currentWorkspaceRect);
+
+    // ── Corner ticks on workspace ──
+    painter.setPen(QPen(QColor(0, 255, 0, 200), 3));
+    int tick = 12;
+    QRect wr = currentWorkspaceRect;
+    // TL
+    painter.drawLine(wr.topLeft(),     wr.topLeft()     + QPoint(tick, 0));
+    painter.drawLine(wr.topLeft(),     wr.topLeft()     + QPoint(0, tick));
+    // TR
+    painter.drawLine(wr.topRight(),    wr.topRight()    + QPoint(-tick, 0));
+    painter.drawLine(wr.topRight(),    wr.topRight()    + QPoint(0, tick));
+    // BL
+    painter.drawLine(wr.bottomLeft(),  wr.bottomLeft()  + QPoint(tick, 0));
+    painter.drawLine(wr.bottomLeft(),  wr.bottomLeft()  + QPoint(0, -tick));
+    // BR
+    painter.drawLine(wr.bottomRight(), wr.bottomRight() + QPoint(-tick, 0));
+    painter.drawLine(wr.bottomRight(), wr.bottomRight() + QPoint(0, -tick));
+
+    // ── Monitor dimension label ──
+    QFont labelFont("Segoe UI", 9);
+    labelFont.setBold(true);
+    painter.setFont(labelFont);
+    QString monLabel = QString("Monitor  %1×%2").arg(displayRatio.width()).arg(displayRatio.height());
+    QFontMetrics fm(labelFont);
+    int lw = fm.horizontalAdvance(monLabel) + 14;
+    int lh = fm.height() + 4;
+    QRect lblRect(QPoint(wr.x() + 6, wr.y() + 6), QSize(lw, lh));
+    painter.setBrush(QBrush(QColor(0, 0, 0, 200)));
+    painter.setPen(QPen(QColor(0, 255, 0, 80), 1));
+    painter.drawRoundedRect(lblRect, 4, 4);
+    painter.setPen(QColor(0, 255, 0));
+    painter.drawText(lblRect, Qt::AlignCenter, monLabel);
 }
 
 void WorkspaceArea::initUi() {
-    noVideoLabel = new QLabel("No Video Loaded\n\nClick 'Open Video' to select a file", this);
+    // ── Empty-state label ──
+    noVideoLabel = new QLabel(this);
     noVideoLabel->setAlignment(Qt::AlignCenter);
+    noVideoLabel->setTextFormat(Qt::RichText);
+    noVideoLabel->setText(
+        "<div style='text-align:center;'>"
+        "<div style='font-size:22px; font-weight:bold; color:#6e7681; margin-bottom:8px;'>No Video Loaded</div>"
+        "<div style='font-size:13px; color:#484f58;'>Click <b>Open Video</b> or press <b>Ctrl+O</b> to begin</div>"
+        "</div>"
+    );
     noVideoLabel->setStyleSheet(
-        "QLabel { color: #ffffff; font-size: 18px; font-weight: bold; "
-        "background-color: rgba(0, 0, 0, 120); border-radius: 10px; padding: 20px; }"
+        "QLabel {"
+        "  background-color: rgba(22, 19, 18, 220);"
+        "  border: 2px dashed #4a3f37;"
+        "  border-radius: 10px;"
+        "  padding: 30px;"
+        "}"
     );
     noVideoLabel->setVisible(false);
 
+    // ── Debug info panel ──
     debugLabel = new QLabel(this);
-    debugLabel->setStyleSheet("background-color: rgba(0,0,0,180); color: white; padding: 2px;");
+    debugLabel->setStyleSheet(
+        "QLabel {"
+        "  background-color: rgba(22, 19, 18, 230);"
+        "  color: #a89888;"
+        "  padding: 6px 10px;"
+        "  border-radius: 6px;"
+        "  border: 1px solid #4a3f37;"
+        "  font-family: 'Cascadia Code', 'Consolas', monospace;"
+        "  font-size: 11px;"
+        "}"
+    );
 
     if (videoRatio != QSize(0, 0)) {
         createVideoArea();
@@ -3537,6 +3799,7 @@ void WorkspaceArea::createVideoArea() {
     }
 }
 
+// ── Config save: UNCHANGED ──
 void WorkspaceArea::saveConfig(const QString& videoPath) {
     if (!videoArea) {
         qDebug() << "Cannot save: No video area loaded.";
@@ -3550,7 +3813,6 @@ void WorkspaceArea::saveConfig(const QString& videoPath) {
     QJsonArray tr; tr.append(realR.x() + realR.width());       tr.append(realR.y());
     QJsonArray bl; bl.append(realR.x());                       bl.append(realR.y() + realR.height());
     QJsonArray br; br.append(realR.x() + realR.width());       br.append(realR.y() + realR.height());
-
     QJsonObject config;
     config["videoPath"] = videoPath;
     QJsonArray cornerArray;
@@ -3574,10 +3836,21 @@ void WorkspaceArea::saveConfig(const QString& videoPath) {
     }
 }
 
-// MainWindow Implementation
+// ═════════════════════════════════════════════
+//  MainWindow Implementation
+// ═════════════════════════════════════════════
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle("Video Layout Tool (Resizable)");
-    resize(800, 600);
+    setWindowTitle("HyprLarp Configuration Tools");
+    resize(960, 680);
+    setMinimumSize(600, 440);
+
+    // ── Center window on screen ──
+    QScreen* screen = QApplication::primaryScreen();
+    if (screen) {
+        QRect sg = screen->availableGeometry();
+        move((sg.width() - width()) / 2 + sg.x(),
+             (sg.height() - height()) / 2 + sg.y());
+    }
 
     monitorRatio = getMonitorResolution();
     videoRatio = QSize(0, 0);
@@ -3589,43 +3862,110 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         qDebug() << "Loaded Video:" << videoRatio.width() << "x" << videoRatio.height();
     }
 
+    // ── Central widget ──
     QWidget* centralWidget = new QWidget(this);
+    centralWidget->setObjectName("CentralWidget");
     setCentralWidget(centralWidget);
-    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(10);
 
+    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // ── Header Widget (Top Area) ──
+    QWidget* headerWidget = new QWidget(centralWidget);
+    headerWidget->setObjectName("HeaderWidget");
+    QVBoxLayout* headerLayout = new QVBoxLayout(headerWidget);
+    headerLayout->setContentsMargins(20, 15, 20, 10);
+    headerLayout->setSpacing(4);
+
+    QLabel* titleLabel = new QLabel("HyprLarp Configuration Tools", headerWidget);
+    titleLabel->setObjectName("AppTitle");
+    headerLayout->addWidget(titleLabel);
+
+    QLabel* subtitleLabel = new QLabel(
+        "Drag the overlay to reposition · Drag corners to resize · Press Esc to reset",
+        headerWidget);
+    subtitleLabel->setObjectName("AppSubtitle");
+    headerLayout->addWidget(subtitleLabel);
+
+    QLabel* filePathLabel = new QLabel("No video file loaded", headerWidget);
+    filePathLabel->setObjectName("FilePathLabel");
+    headerLayout->addWidget(filePathLabel);
+
+    mainLayout->addWidget(headerWidget);
+
+    // ── Workspace Wrapper (Middle Area) ──
+    QWidget* wsWrapper = new QWidget(centralWidget);
+    wsWrapper->setObjectName("WsWrapper");
+    QVBoxLayout* wsLayout = new QVBoxLayout(wsWrapper);
+    wsLayout->setContentsMargins(20, 20, 20, 20);
+    wsLayout->setSpacing(0);
+    
     workspace = new WorkspaceArea(monitorRatio, videoRatio);
-    mainLayout->addWidget(workspace);
+    wsLayout->addWidget(workspace);
+    mainLayout->addWidget(wsWrapper, 1);
 
     if (!configCorners.isEmpty()) {
         workspace->pendingConfigCorners = configCorners;
     }
 
-    QHBoxLayout* controlsLayout = new QHBoxLayout();
+    // ── Footer Widget (Bottom Area) ──
+    QWidget* footerWidget = new QWidget(centralWidget);
+    footerWidget->setObjectName("FooterWidget");
+    QHBoxLayout* controlsLayout = new QHBoxLayout(footerWidget);
+    controlsLayout->setContentsMargins(20, 10, 20, 15);
+    controlsLayout->setSpacing(10);
 
     openBtn = new QPushButton("Open Video");
+    openBtn->setObjectName("PrimaryBtn");
+    openBtn->setToolTip("Open a video file  (Ctrl+O)");
     QObject::connect(openBtn, &QPushButton::clicked, [this]() { this->openVideo(); });
     controlsLayout->addWidget(openBtn);
 
     saveBtn = new QPushButton("Save Config");
+    saveBtn->setToolTip("Save corner positions to config  (Ctrl+S)");
     QObject::connect(saveBtn, &QPushButton::clicked, [this]() { this->saveConfig(); });
     controlsLayout->addWidget(saveBtn);
 
-    resetBtn = new QPushButton("Reset Position & Size");
-    QObject::connect(resetBtn, &QPushButton::clicked, [this]() { this->workspace->resetVideo(); });
     controlsLayout->addStretch();
+
+    resetBtn = new QPushButton("Reset");
+    resetBtn->setObjectName("DangerBtn");
+    resetBtn->setToolTip("Reset position and size  (Esc)");
+    QObject::connect(resetBtn, &QPushButton::clicked, [this]() { this->workspace->resetVideo(); });
     controlsLayout->addWidget(resetBtn);
 
-    mainLayout->addLayout(controlsLayout);
+    QPushButton* exitBtn = new QPushButton("Exit");
+    exitBtn->setToolTip("Close application  (Ctrl+Q)");
+    QObject::connect(exitBtn, &QPushButton::clicked, this, &QMainWindow::close);
+    controlsLayout->addWidget(exitBtn);
 
+    mainLayout->addWidget(footerWidget);
+
+    // ── Initialize workspace UI ──
     workspace->initUi();
 
     if (videoPath.isEmpty()) {
         workspace->noVideoLabel->setVisible(true);
+    } else {
+        filePathLabel->setText("File: " + QFileInfo(videoPath).fileName());
+        statusBar()->showMessage(
+            QString("Loaded: %1  (%2×%3)")
+                .arg(QFileInfo(videoPath).fileName())
+                .arg(videoRatio.width())
+                .arg(videoRatio.height()),
+            5000);
     }
+
+    // ── Keyboard shortcuts ──
+    new QShortcut(QKeySequence("Ctrl+O"), this, [this]() { this->openVideo(); });
+    new QShortcut(QKeySequence("Ctrl+S"), this, [this]() { this->saveConfig(); });
+    new QShortcut(QKeySequence("Escape"), this, [this]() { this->workspace->resetVideo(); });
+    new QShortcut(QKeySequence("R"),      this, [this]() { this->workspace->resetVideo(); });
+    new QShortcut(QKeySequence("Ctrl+Q"), this, [this]() { this->close(); });
 }
 
+// ── Config load: UNCHANGED ──
 void MainWindow::loadConfig() {
     QString configPath = getConfigPath();
     QFile file(configPath);
@@ -3659,7 +3999,7 @@ void MainWindow::loadConfig() {
 
 void MainWindow::openVideo() {
     QString filepath = QFileDialog::getOpenFileName(
-        this, "Open Video File", "", "Video Files (*.mp4 *.avi *.mkv *.mov)");
+        this, "Open Video File", "", "Video Files (*.mp4 *.avi *.mkv *.mov *.webm *.flv)");
     if (!filepath.isEmpty()) {
         videoPath = filepath;
         videoRatio = getVideoResolution(filepath);
@@ -3675,21 +4015,46 @@ void MainWindow::openVideo() {
 
         workspace->updateLayout();
         workspace->videoArea->update();
+
+        // Update File Path Label
+        QLabel* lbl = centralWidget()->findChild<QLabel*>("FilePathLabel");
+        if (lbl) {
+            lbl->setText("File: " + QFileInfo(filepath).fileName());
+        }
+
+        statusBar()->showMessage(
+            QString("Loaded: %1  (%2×%3)")
+                .arg(QFileInfo(filepath).fileName())
+                .arg(videoRatio.width())
+                .arg(videoRatio.height()),
+            4000);
     }
 }
 
 void MainWindow::saveConfig() {
     if (videoPath.isEmpty() || !workspace->videoArea) {
+        statusBar()->showMessage("Nothing to save — no video loaded.", 3000);
         qDebug() << "No video loaded to save.";
         return;
     }
     workspace->saveConfig(videoPath);
+    statusBar()->showMessage(
+        QString("Config saved → %1").arg(getConfigPath()), 4000);
 }
 
-// Main setup
+// ── Main setup ──
 int setup(int argc, char* argv[]) {
     QApplication app(argc, argv);
+
+    // Global font
+    QFont appFont("Segoe UI", 10);
+    app.setFont(appFont);
+
+    // Global stylesheet
+    app.setStyleSheet(kAppQSS);
+
     MainWindow window;
+    window.showFullScreen();
     window.show();
     return app.exec();
 }
@@ -4053,6 +4418,18 @@ public:
     int renderFrame() {
 
         refreshLayout();
+
+        std::cerr << "PID=" << getpid()
+              << " cursor_row=" << layoutRender.cursor_row
+              << " cursor_col=" << layoutRender.cursor_col
+              << " sub_offset_y=" << layoutRender.sub_offset_y
+              << " sub_offset_x=" << layoutRender.sub_offset_x
+              << " disp_rows=" << layoutRender.disp_rows
+              << " disp_cols=" << layoutRender.disp_cols
+              << " overlap_y=" << viewPort.overlap_y
+              << " cell_h=" << cell_h
+              << " grid_screen_y=" << grid_screen_y
+              << std::endl;
 
         // check rendering status
         static bool wasRendering = false;
@@ -4431,6 +4808,8 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
         std::cerr << "escSequence: snprintf truncated or failed, n=" << n << std::endl;
         return 0;
     }
+
+    
 
     hb("before_write");
     if (!writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n))) {

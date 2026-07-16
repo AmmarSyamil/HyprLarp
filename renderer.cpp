@@ -135,6 +135,8 @@ int escSequence(int width, int height, const std::string& b64_shm, const LayoutR
         return 0;
     }
 
+    
+
     hb("before_write");
     if (!writeAll(STDOUT_FILENO, buf, static_cast<size_t>(n))) {
         std::cerr << "escSequence: write failed, errno=" << errno << " (" << strerror(errno) << ")" << std::endl;

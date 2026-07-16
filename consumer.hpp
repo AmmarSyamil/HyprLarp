@@ -176,6 +176,18 @@ public:
 
         refreshLayout();
 
+        std::cerr << "PID=" << getpid()
+              << " cursor_row=" << layoutRender.cursor_row
+              << " cursor_col=" << layoutRender.cursor_col
+              << " sub_offset_y=" << layoutRender.sub_offset_y
+              << " sub_offset_x=" << layoutRender.sub_offset_x
+              << " disp_rows=" << layoutRender.disp_rows
+              << " disp_cols=" << layoutRender.disp_cols
+              << " overlap_y=" << viewPort.overlap_y
+              << " cell_h=" << cell_h
+              << " grid_screen_y=" << grid_screen_y
+              << std::endl;
+
         // check rendering status
         static bool wasRendering = false;
         if (!viewPort.isRender) {

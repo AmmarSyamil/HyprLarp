@@ -1,6 +1,7 @@
 //Use to check if the executable was run in terminal or not and what terminal is it
 // checkTerminal.cpp
 #include <iostream>
+#include <sys/types.h>
 #include <unistd.h>
 #include <string>
 #include <fstream>
@@ -87,12 +88,26 @@ pid_t FindTerminalPID() {
 
         std::string name = GetProcessName(pid);
 
-//         std::cout << "PID: " << pid
-//                 << " NAME: [" << name << "]\n";
-
         if (terminals.contains(name)) {
-//             std::cout << "FOUND TERMINAL\n";
             return pid;
+        }
+
+        pid = GetParentPID(pid);
+    }
+
+    return -1;
+}
+
+
+// Check wether the current procces run from kitty terminal or not
+int isTerminalKitty() {
+    pid_t pid = getpid();
+
+    while (pid > 1) {
+        std::string name = GetProcessName(pid);
+
+        if ("kitty" == name) {
+            return 1;
         }
 
         pid = GetParentPID(pid);
@@ -104,16 +119,10 @@ pid_t FindTerminalPID() {
 
 // Is terminal return 1, not terminal return 0.
 int IsPIDTerminal(pid_t pid) {
-
     while (pid > 1) {
-
         std::string name = GetProcessName(pid);
 
-//         std::cout << "PID: " << pid
-//                 << " NAME: [" << name << "]\n";
-
         if (terminals.contains(name)) {
-//             std::cout << "FOUND TERMINAL\n";
             return 1;
         }
 

@@ -4,20 +4,14 @@
 
 #include <filesystem>
 #include <iostream>
-#include <thread>
 #include <unistd.h>
-
-#include "socketSend.hpp"
-#include "socketReceive.hpp"
-#include "tools.hpp"
-#include "checkTerminal.hpp"
-#include "DataType.hpp"
 #include <fcntl.h>
 #include <sys/file.h>
 
 #include "gui.hpp"
 #include "producer.hpp"
 #include "consumer.hpp"
+#include "checkTerminal.hpp"
 
 // Class to determine wether this instance will runned as consumer or producer
 class InstanceManager{
@@ -34,7 +28,6 @@ public:
         // Open (or create) the lock file
         lock_fd = open(path.c_str(), O_CREAT | O_RDWR, 0666);
         if (lock_fd == -1) {
-            // Can't open file // treat as non‑owner (safe fallback)
             return;
         }
 
@@ -72,47 +65,37 @@ int main(int argc, char* argv[]) {
         InstanceManager guard("HyprLarp");
         
         // Check wether it was run via terminal or not
+        if (isTerminalKitty() == -1) {
+            std::cerr << "Process currently run in non Kitty terminal, please try again using Kitty terminal." << std::endl;
+            return -1;
+        }
         
-    
-        // initialized the WindowData type
-        // WorkspaceData Data;
-    
-        // // Check systme terminal emulator
-        
-        // // No need actually, this is past uses
-        // // Get PID of the process
-        // // pid_t pid = getpid();
-    
-        // // Get all terminal window from that workspace
-        // std::cout << "initialize object done" << std::endl;
-        // Data.FetchWindowID();
-        // main terminal is mentioned twice
-    //     std::cout << "fetch window done" << std::endl;
-    
-    //     std::cout << Data;
-    
-        // Create workspacedata
-    
         // CLI
         if (argc > 1)
         {
             std::string arg = argv[1];
     
-            if (arg == "--gui")
+            if (arg == "--setting" or arg == "-s")
             {
                 // Open GUI
                 setup(argc, argv);
                 return 0;
             }
+
+            if (arg == "--producer" or arg == "-p") {
+                mainProducer();
+                return 0;
+            }
     
-            if (arg == "--help")
+            if (arg == "--help" or arg == "-h")
             {
                 std::cout << "HyprLarp. Tools to Larp more efficiently." << std::endl;
                 std::cout << "usage : HyprLarp [-h] [--gui]" << std::endl;
                 std::cout << "" << std::endl;
                 std::cout << "options:" << std::endl;
-                std::cout << "  -h, --help      show this message and exit" << std::endl;
-                std::cout << "  -g, --gui       Launch GUI setting to setup ~/.config/HyprLarp.json" << std::endl;
+                std::cout << "  -h, --help      Show this message and exit" << std::endl;
+                std::cout << "  -s, --setting   Launch configuration GUI tools to setup the config file (~/.config/HyprLarp.json)" << std::endl;
+                std::cout << "  -p, --producer  Launch HyprLarp producer process only with their logs." << std::endl;
                 return 0;
             }
         }
@@ -126,15 +109,14 @@ int main(int argc, char* argv[]) {
 
         std::filesystem::path configPath = std::filesystem::path(homeDir) / ".config/HyprLarp.json";
         if (!std::filesystem::exists(configPath)) {
-            std::cerr << "Failed to find config file, make sure " << configPath
-                    << " exists by running Hyprlarp --gui" << std::endl;
+            std::cerr << "Failed to find config file, make sure " << configPath << " exists by running Hyprlarp --gui" << std::endl;
             return -1;
         }
     
         if (guard.is_first_instance()) {
             // Producer
             mainProducer();
-    
+            // mainConsumer();    
         } else {
             // Consumer
             mainConsumer();
@@ -144,6 +126,5 @@ int main(int argc, char* argv[]) {
         std::cerr << "HyprLarp Failed to launch " << e.what() << std::endl;
     }
 
-    
     return 1;
 }
