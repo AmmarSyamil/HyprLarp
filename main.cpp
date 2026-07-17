@@ -116,33 +116,35 @@ int main(int argc, char* argv[]) {
     
         // Run both prodducer (in baground) and consumer
         if (guard.is_first_instance()) {
-            pid_t pid = fork();
+        pid_t pid = fork();
+        if (pid == -1) {
+            std::cerr << "fork() failed\n";
+            return -1;
+        }
 
-            if (pid == -1) {
-                std::cerr << "fork() failed\n";
-                return -1;
+        if (pid == 0) {
+            int devnull_out = open("/dev/null", O_WRONLY);
+            int devnull_in = open("/dev/null", O_RDONLY);
+            if (devnull_out != -1) {
+                dup2(devnull_out, STDOUT_FILENO);
+                dup2(devnull_out, STDERR_FILENO);
+                close(devnull_out);
             }
-
-            if (pid == 0) {
-                int devnull_out = open("/dev/null", O_WRONLY);
-                int devnull_in = open("/dev/null", O_RDONLY);
-                if (devnull_out != -1) {
-                    dup2(devnull_out, STDOUT_FILENO);
-                    dup2(devnull_out, STDERR_FILENO);
-                    close(devnull_out);
-                }
-                if (devnull_in != -1) {
-                    dup2(devnull_in, STDIN_FILENO);
-                    close(devnull_in);
-                }
-                mainProducer();
-                _exit(0);
+            if (devnull_in != -1) {
+                dup2(devnull_in, STDIN_FILENO);
+                close(devnull_in);
             }
-
+            mainProducer();
+            _exit(0);
         } else {
-            // Consumer
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // wait for a bit to prevent racing with the producer
+            signal(SIGCHLD, SIG_IGN);
             mainConsumer();
         }
+
+    } else {
+        mainConsumer();
+    }
         
     } catch (const std::runtime_error& e) {
         std::cerr << "HyprLarp Failed to launch " << e.what() << std::endl;

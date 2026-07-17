@@ -25,6 +25,7 @@ add_executable(hyprlarp
     ../base64converter.cpp
     ../terminalLayout.cpp
     ../consumerLayout.cpp
+    ../consumerRegistry.cpp
 )
 
 

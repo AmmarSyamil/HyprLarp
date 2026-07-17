@@ -20,7 +20,8 @@ set raw_files \
     ../renderer.cpp \
     ../base64converter.cpp \
     ../terminalLayout.cpp \
-    ../consumerLayout.cpp
+    ../consumerLayout.cpp \
+    ../consumerRegistry.cpp
 
 set printed_files
 

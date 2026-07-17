@@ -34,8 +34,10 @@ zamn idk where to start
 (v). CHange /vp_static into /HyprLarp-Producer
 29. COmbine the layout thingy
 (v). add / clean the shm
-31. Instead of polling each frame, use the socket to detech window changes (efficientcy)
-32. use SIGWINCH + socket2 events + slow poll
+(V). Instead of polling each frame, use the socket to detech window changes (efficientcy)
+(V). use SIGWINCH + socket2 events + slow poll
+33. performance improvement for high definition video
+34. fix the not deleting producer at close consumer
 
 video :
 1. use kitty, ghossty, WezTerm

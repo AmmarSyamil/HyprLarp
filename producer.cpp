@@ -27,6 +27,7 @@ extern "C" {
 #include <chrono>
 #include <fstream>
 #include "checkTerminal.hpp"
+#include "consumerRegistry.hpp"
 
 // universal logging
 static void tlog(const char* tag, const std::string& msg) {
@@ -171,6 +172,9 @@ int mainProducer() {
     // Loop the video repeatedly
     int loop_count = 0;
     while (true) {
+
+        
+        
         loop_count++;
         // std::cout << "[PRODUCER] === Loop " << loop_count << " ===" << std::endl;
         decodeVideo(decoder, frame);
@@ -182,9 +186,11 @@ int mainProducer() {
         
         static auto lastCheck = std::chrono::steady_clock::now();
         auto now = std::chrono::steady_clock::now();
-        if (now - lastCheck > std::chrono::milliseconds(500)) {
-            workspaceData.FetchWindowID();   // refresh window list
-            publishLayout(workspaceData);
+        if (now - lastCheck > std::chrono::seconds(2)) {
+            if (!(checkConsumerState())) {
+                std::cerr << "No consumers alive, producer exiting.\n";
+                break;   // exit the while loop
+            }
             lastCheck = now;
         }
     }
