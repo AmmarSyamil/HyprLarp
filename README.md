@@ -7,7 +7,7 @@ HyprLarp automatically detects the layout of terminal windows on a workspace, ca
 ## Preview
 
 <p align="center">
-    <img src="demo.mp4" alt="HyprLarp Demo">
+    <video src="docs/demo.mp4" controls autoplay loop muted></video>
 </p>
 
 ---
@@ -135,7 +135,7 @@ Artificial intelligence was used as a development assistant for
 
 - debugging difficult geometry calculations
 - discussing viewport algorithms
-- GUI prototyping
+- GUI prototyping (coloring and styling)
 - documentation improvements
 
 All architectural decisions, implementation, testing, and final code were completed and reviewed manually.
