@@ -7,7 +7,7 @@ HyprLarp automatically detects the layout of terminal windows on a workspace, ca
 ## Preview
 
 <p align="center">
-    <img src="docs/demo.gif" alt="HyprLarp Demo">
+    <img src="demo.mp4" alt="HyprLarp Demo">
 </p>
 
 ---

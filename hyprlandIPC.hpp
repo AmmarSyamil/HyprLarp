@@ -1,28 +1,25 @@
 #pragma once
 
-#include <nlohmann/json.hpp>
-#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <mutex>
+#include "simdjson.h"
 
-class HyprlandIPC{
+class HyprlandIPC {
 private:
     HyprlandIPC();
     ~HyprlandIPC();
-        
+
     int sock;
     bool peer_closed = false;
     std::string path;
     std::mutex mtx;
+    simdjson::dom::parser parser;
+    simdjson::dom::element cached_elem;
 
     bool ensureConnected();
 
-public:    
+public:
     static HyprlandIPC& instance();
-
-    // Returns 0 on success, 1 on failure
-    int getClients(nlohmann::json& output);
-    int getOption(const std::string& option, nlohmann::json& output);
-    
-
+    int getClients(simdjson::dom::element& output);
+    int getOption(const std::string& option, simdjson::dom::element& output);
 };

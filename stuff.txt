@@ -200,6 +200,30 @@ int main(int argc, char* argv[]) {
 
 #include "hyprlandIPC.hpp"
 
+nlohmann::json convertSimdjsonToNlohmann(const simdjson::dom::element& el) {
+    if (el.is_object()) {
+        nlohmann::json obj;
+        for (auto [key, value] : el.get_object()) {
+            obj[std::string(key)] = convertSimdjsonToNlohmann(value);
+        }
+        return obj;
+    } else if (el.is_array()) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (auto val : el.get_array()) {
+            arr.push_back(convertSimdjsonToNlohmann(val));
+        }
+        return arr;
+    } else if (el.is_string()) {
+        return std::string(el.get_string().value());
+    } else if (el.is_int64()) {
+        return el.get_int64().value();
+    } else if (el.is_bool()) {
+        return el.get_bool().value();
+    } else {
+        return nlohmann::json();
+    }
+}
+
 // Function that being called
 static void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
@@ -284,88 +308,20 @@ int send_and_receive_json(int sock, const std::string& cmd, std::string& respons
 }
 
 int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
-    // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    // if (sock < 0) {
-    //     std::cerr << "GetHyprlandOption: socket creation failed\n";
-    //     return 1;
-    // }
-
-    // std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
-
-    // if (connect_hyprland_socket(sock, path) != 0) {
-    //     std::cerr << "GetHyprlandOption: connect failed\n";
-    //     close(sock);
-    //     return 1;
-    // }
-
-    // std::string command = "j/getoption " + option;
-    // std::string response;
-    // if (send_and_receive_json(sock, command, response, 200) != 0) {
-    //     std::cerr << "GetHyprlandOption: send/recv failed\n";
-    //     close(sock);
-    //     return 1;
-    // }
-
-    // close(sock);
-
-    // try {
-    //     output = nlohmann::json::parse(response);
-    // } catch (const nlohmann::json::parse_error& e) {
-    //     std::cerr << "GetHyprlandOption: JSON parse failed: " << e.what() << "\n";
-    //     return 1;
-    // }
-
-    // return 0;
-    return HyprlandIPC::instance().getOption(option, output);
+    simdjson::dom::element elem;
+    if (HyprlandIPC::instance().getOption(option, elem) != 0) return 1;
+    output = convertSimdjsonToNlohmann(elem);
+    return 0;
 }
 
 int GetWindowsPropertiesData(nlohmann::json& outputData) {
-    // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    // if (sock < 0) {
-    //     std::cerr << "Socket sends (.sock) connection failed at making sock\n";
-    //     return 1;
-    // }
-
-    // std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
-
-    // hb("before_connect");
-    // if (connect_hyprland_socket(sock, path) != 0) {
-    //     hb("after_connect_error");
-    //     std::cerr << "GetWindowsPropertiesData: connect failed\n";
-    //     close(sock);
-    //     return 1;
-    // }
-    // hb("after_connect");
-
-    // std::string response;
-    // if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
-    //     std::cerr << "GetWindowsPropertiesData: send/recv failed\n";
-    //     close(sock);
-    //     return 1;
-    // }
-    // hb("after_recv");
-
-    // close(sock);
-
-    // if (response.empty()) {
-    //     std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
-    //     return 1;
-    // }
-
-    // try {
-    //     outputData = nlohmann::json::parse(response);
-    // } catch (const nlohmann::json::parse_error& e) {
-    //     std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
-    //     return 1;
-    // }
-
-    // return 0;
-    return HyprlandIPC::instance().getClients(outputData);
+    simdjson::dom::element elem;
+    if (HyprlandIPC::instance().getClients(elem) != 0) return 1;
+    outputData = convertSimdjsonToNlohmann(elem);
+    return 0;
 }
 
-
-//Function to get the window address from the PID of the process
-int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
+int queryPosWindow(const nlohmann::json& data, const std::string& address, WindowPos& output) {
     for (const auto& jsonData : data) {
         if (jsonData["address"] == address) {
             std::vector<int> at_vec = jsonData["at"].get<std::vector<int>>();
@@ -378,104 +334,98 @@ int queryPosWindow(const nlohmann::json data, const std::string& address, Window
     return 1;
 }
 
-// Overload function of the query for the PID way of input
-// Output address of the window from input PID
-int queryWindowAddress(const nlohmann::json& data, int address, std::string& output) {
-    bool found = false;
-
-    for (const auto& jsonData: data) {
-        if (jsonData["pid"] == address) {
-//             std::cout << "Found PID window title: " << jsonData["title"] << std::endl;
-            output = jsonData["address"].get<std::string>();
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
-        std::cerr << "queryWindowAddress: no matching pid found for " << address << std::endl;
-    }
-
-    return found ? 0 : 1;
-}
-
-//Overload from terminal window tittle name
-// Output address of the window from input tittle name
-int queryWindowAddress(const nlohmann::json& data, std::string address, std::string& output) {
-    bool found = false;
-
-    for (const auto& jsonData: data) {
-        if (jsonData["title"] == address) {
-//             std::cout << "Found window: " << jsonData["title"] << std::endl;
-            output = jsonData["address"].get<std::string>();
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
-        std::cerr << "queryWindowAddress: no matching window found for " << address << std::endl;
-    }
-
-    return found ? 0 : 1;
-}
-
-// Function to return the Workspace ID from given window address
-int queryWorkspaceId(const nlohmann::json data, std::string address) {
-
-    // nlohmann::json jsonData{};
-
-    // std::cout << "query test" << std::endl;
-
-    for (const auto& jsonData: data) {
+int queryWorkspaceId(const nlohmann::json& data, std::string address) {
+    for (const auto& jsonData : data) {
         if (jsonData["address"] == address) {
-//             std::cout << jsonData["title"] << std::endl;
-
             return jsonData["workspace"]["id"];
         }
     }
-    
     return -1;
 }
 
-// Using PID address to find windows address
-int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr) {
-    if (!data) {
-        nlohmann::json jsonData;
-        if (GetWindowsPropertiesData(jsonData) != 0) {
-            return 1;
+int queryWindowAddress(const nlohmann::json& data, std::string address, std::string& output) {
+    for (const auto& jsonData : data) {
+        if (jsonData["title"] == address) {
+            output = jsonData["address"].get<std::string>();
+            return 0;
         }
-        data = &jsonData;
     }
-
-    // dataMutex.lock();
-    int result = queryWindowAddress(*data, address, outputData);
-    // dataMutex.unlock();
-
-    return result;
+    return 1;
 }
 
-//Function overload for windows tittle terminal
-int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data = nullptr) {
+int queryWindowAddress(const nlohmann::json& data, int address, std::string& output) {
+    for (const auto& jsonData : data) {
+        if (jsonData["pid"] == address) {
+            output = jsonData["address"].get<std::string>();
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data) {
+    if (!data) {
+        nlohmann::json localData;
+        if (GetWindowsPropertiesData(localData) != 0) return 1;
+        data = &localData;
+    }
+    return queryWindowAddress(*data, address, outputData);
+}
+
+int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data) {
     nlohmann::json localData;
     if (!data) {
         GetWindowsPropertiesData(localData);
         data = &localData;
     }
-
-    // Use this wierd add mutex
-    {
-        std::lock_guard<std::mutex> lock(dataMutex);
-        int result = queryWindowAddress(*data, address, outputData);
-        
-        return result;
-    };
-    // dataMutex.lock();
-    // dataMutex.unlock();
-    // std::lock_guard<std::mutex> 
-    return 1;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return queryWindowAddress(*data, address, outputData);
 }
 
+
+// int GetWindowsPropertiesData(nlohmann::json& outputData) {
+//     // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+//     // if (sock < 0) {
+//     //     std::cerr << "Socket sends (.sock) connection failed at making sock\n";
+//     //     return 1;
+//     // }
+
+//     // std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
+
+//     // hb("before_connect");
+//     // if (connect_hyprland_socket(sock, path) != 0) {
+//     //     hb("after_connect_error");
+//     //     std::cerr << "GetWindowsPropertiesData: connect failed\n";
+//     //     close(sock);
+//     //     return 1;
+//     // }
+//     // hb("after_connect");
+
+//     // std::string response;
+//     // if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
+//     //     std::cerr << "GetWindowsPropertiesData: send/recv failed\n";
+//     //     close(sock);
+//     //     return 1;
+//     // }
+//     // hb("after_recv");
+
+//     // close(sock);
+
+//     // if (response.empty()) {
+//     //     std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
+//     //     return 1;
+//     // }
+
+//     // try {
+//     //     outputData = nlohmann::json::parse(response);
+//     // } catch (const nlohmann::json::parse_error& e) {
+//     //     std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
+//     //     return 1;
+//     // }
+
+//     // return 0;
+//     return HyprlandIPC::instance().getClients(outputData);
+// }
 
 // Get all of window ID with the same workspaceID
 nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) {
@@ -505,26 +455,15 @@ nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) 
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include "DataType.hpp"
+#include <simdjson.h>
 
-// int SocketSendConnection(std::string address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData);
-// int SocketSendConnection(int address, std::mutex& dataMutex, std::string& outputData);
-
-int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output);
-int queryWorkspaceId(const nlohmann::json data, std::string address);
-int GetWindowsPropertiesData(nlohmann::json& outputData);
-// int GetWindowPos(const std::string& address, std::mutex& dataMutex, std::vector<std::vector<int>>& outputData, std::optional<nlohmann::json> data = std::nullopt);
-
+int queryPosWindow(const nlohmann::json& data, const std::string& address, WindowPos& output);
+int queryWorkspaceId(const nlohmann::json& data, std::string address);
 int queryWindowAddress(const nlohmann::json& data, std::string address, std::string& output);
 int queryWindowAddress(const nlohmann::json& data, int address, std::string& output);
 
-
 int GetWindowAddress(pid_t address, std::string& outputData, const nlohmann::json* data = nullptr);
 int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& outputData, const nlohmann::json* data = nullptr);
-nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID);
-
-int GetHyprlandOption(const std::string& option, nlohmann::json& output);
-int connect_hyprland_socket(int sock, const std::string& path);
-int send_and_receive_json(int sock, const std::string& cmd, std::string& response, int timeout_ms = 200);
 =========================================
  FILE: socketReceive.cpp
 =========================================
@@ -1177,7 +1116,6 @@ int WindowData::GetWindowPosCartesian() {
 
 // Function that input hyprctl client data and output and the current windowID of the object and output the WindowPos object of its pos, size
 WindowPos WindowData::GetWindowPos(nlohmann::json& data) {
-    std::mutex mutex;
     WindowPos output;
     
     // why i need double vector of int? yeah actually jst delete it
@@ -1264,19 +1202,6 @@ std::unordered_set<std::string> WorkspaceData::currentWindowData() {
     return output;
 };
 
-
-static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
-    os << "[";
-    
-    for (size_t i = 0; i < vec.size(); i++) {
-        os << vec[i];
-
-        if (i != vec.size() - 1)
-            os << ", ";
-    }
-
-    os << "]";
-}
 static void PrintVec(std::ostream& os, const std::array<int, 2>& arr) {
     os << "[" << arr[0] << ", " << arr[1] << "]";
 }
@@ -5299,7 +5224,8 @@ bool checkConsumerState();
 =========================================
  FILE: hyprlandIPC.cpp
 =========================================
-#include <mutex>
+#include "hyprlandIPC.hpp"
+#include "socketSend.hpp"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -5309,22 +5235,18 @@ bool checkConsumerState();
 #include <cerrno>
 #include <iostream>
 
-#include "hyprlandIPC.hpp"
-#include "socketSend.hpp"
-
 HyprlandIPC::HyprlandIPC() : sock(-1) {
     const char* runtime = getenv("XDG_RUNTIME_DIR");
     const char* sig = getenv("HYPRLAND_INSTANCE_SIGNATURE");
     if (!runtime || !sig) {
-        std::cerr << "hyprlandIPC : HYPRLAND_INSTANCE_SIGNATURE not set" << std::endl;
+        std::cerr << "hyprlandIPC: HYPRLAND_INSTANCE_SIGNATURE not set\n";
         return;
     }
-
     path = std::string(runtime) + "/hypr/" + sig + "/.socket.sock";
 }
 
 HyprlandIPC::~HyprlandIPC() {
-    if (sock >=0) close(sock);
+    if (sock >= 0) close(sock);
 }
 
 HyprlandIPC& HyprlandIPC::instance() {
@@ -5337,24 +5259,22 @@ bool HyprlandIPC::ensureConnected() {
     if (sock >= 0) return true;
     sock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) {
-        std::cerr << "HyprlandIPC: socket creation failed" << std::endl;
+        std::cerr << "HyprlandIPC: socket creation failed\n";
         return false;
     }
     if (connect_hyprland_socket(sock, path) != 0) {
-        std::cerr << "HyprlandIPC: connect failed to " << path << std::endl;
+        std::cerr << "HyprlandIPC: connect failed to " << path << "\n";
         close(sock);
         sock = -1;
         return false;
     }
-
     return true;
 }
 
-
-int HyprlandIPC::getClients(nlohmann::json &output) {
+int HyprlandIPC::getClients(simdjson::dom::element& output) {
     std::lock_guard<std::mutex> lock(mtx);
     if (!ensureConnected()) return 1;
-    
+
     std::string response;
     if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
         close(sock);
@@ -5366,21 +5286,18 @@ int HyprlandIPC::getClients(nlohmann::json &output) {
             return 1;
         }
     }
-    char peek;
-    if (recv(sock, &peek, 1, MSG_DONTWAIT | MSG_PEEK) == 0) {
-        peer_closed = true;   // ← detect early, skip wasted send next time
-    }
-    
-    try {
-        output = nlohmann::json::parse(response);
-    } catch (...) {
+
+    auto parse_result = parser.parse(response);
+    if (parse_result.error()) {
+        std::cerr << "HyprlandIPC: simdjson parse error: " << parse_result.error() << "\n";
         return 1;
     }
-
+    cached_elem = parse_result.value();   // store the element
+    output = cached_elem;
     return 0;
 }
 
-int HyprlandIPC::getOption(const std::string& option, nlohmann::json& output) {
+int HyprlandIPC::getOption(const std::string& option, simdjson::dom::element& output) {
     std::lock_guard<std::mutex> lock(mtx);
     if (!ensureConnected()) return 1;
 
@@ -5396,44 +5313,41 @@ int HyprlandIPC::getOption(const std::string& option, nlohmann::json& output) {
             return 1;
         }
     }
-    try {
-        output = nlohmann::json::parse(response);
-    } catch (...) {
+
+    auto parse_result = parser.parse(response);
+    if (parse_result.error()) {
+        std::cerr << "HyprlandIPC: simdjson parse error for option: " << option << "\n";
         return 1;
     }
+    cached_elem = parse_result.value();
+    output = cached_elem;
     return 0;
 }
-
-
 =========================================
  FILE: hyprlandIPC.hpp (Auto-located)
 =========================================
 #pragma once
 
-#include <nlohmann/json.hpp>
-#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <mutex>
+#include "simdjson.h"
 
-class HyprlandIPC{
+class HyprlandIPC {
 private:
     HyprlandIPC();
     ~HyprlandIPC();
-        
+
     int sock;
     bool peer_closed = false;
     std::string path;
     std::mutex mtx;
+    simdjson::dom::parser parser;
+    simdjson::dom::element cached_elem;
 
     bool ensureConnected();
 
-public:    
+public:
     static HyprlandIPC& instance();
-
-    // Returns 0 on success, 1 on failure
-    int getClients(nlohmann::json& output);
-    int getOption(const std::string& option, nlohmann::json& output);
-    
-
+    int getClients(simdjson::dom::element& output);
+    int getOption(const std::string& option, simdjson::dom::element& output);
 };
-

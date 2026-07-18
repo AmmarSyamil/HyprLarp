@@ -361,7 +361,6 @@ int WindowData::GetWindowPosCartesian() {
 
 // Function that input hyprctl client data and output and the current windowID of the object and output the WindowPos object of its pos, size
 WindowPos WindowData::GetWindowPos(nlohmann::json& data) {
-    std::mutex mutex;
     WindowPos output;
     
     // why i need double vector of int? yeah actually jst delete it
@@ -448,19 +447,6 @@ std::unordered_set<std::string> WorkspaceData::currentWindowData() {
     return output;
 };
 
-
-static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
-    os << "[";
-    
-    for (size_t i = 0; i < vec.size(); i++) {
-        os << vec[i];
-
-        if (i != vec.size() - 1)
-            os << ", ";
-    }
-
-    os << "]";
-}
 static void PrintVec(std::ostream& os, const std::array<int, 2>& arr) {
     os << "[" << arr[0] << ", " << arr[1] << "]";
 }
