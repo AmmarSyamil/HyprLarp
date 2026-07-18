@@ -1,3 +1,6 @@
+
+
+
 # HyprLarp
 A Hyprland utility that transforms multiple Kitty terminal windows into a single synchronized video canvas.
 
@@ -5,10 +8,7 @@ HyprLarp automatically detects the layout of terminal windows on a workspace, ca
 
 ---
 ## Preview
-
-<p align="center">
-    <video src="demo.mp4" controls autoplay loop muted></video>
-</p>
+https://github.com/user-attachments/assets/17e744c0-98ad-43b6-836a-fc83983d261c
 
 ---
 ## How It Works
