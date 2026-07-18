@@ -7,7 +7,7 @@ HyprLarp automatically detects the layout of terminal windows on a workspace, ca
 ## Preview
 
 <p align="center">
-    <video src="docs/demo.mp4" controls autoplay loop muted></video>
+    <video src="demo.mp4" controls autoplay loop muted></video>
 </p>
 
 ---
