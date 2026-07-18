@@ -87,7 +87,7 @@ static WindowPos windowPosFromClient(const nlohmann::json& client) {
     pos.at = { at_vec[0], at_vec[1] };
     pos.size = { size_vec[0], size_vec[1] };
     return pos;
-
+}
 
 // Prefer the last matching client entry; Hyprland can briefly emit duplicates
 // during tiling animations and the later entry is usually the settled one.
@@ -460,6 +460,9 @@ static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
     }
 
     os << "]";
+}
+static void PrintVec(std::ostream& os, const std::array<int, 2>& arr) {
+    os << "[" << arr[0] << ", " << arr[1] << "]";
 }
 
 std::ostream& operator<<(std::ostream& os, const WindowData& wd) {

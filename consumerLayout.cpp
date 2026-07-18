@@ -30,11 +30,13 @@ bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
     WindowPos pos;
     bool found = false;
     for (const auto& client : clients) {
-        if (client.contains("pid") && client["pid"].get<pid_t>() == terminalPid) {
-            pos.at   = client["at"].get<std::vector<int>>();
-            pos.size = client["size"].get<std::vector<int>>();
-            found = true;
-            break;
+    if (client.contains("pid") && client["pid"].get<pid_t>() == terminalPid) {
+        std::vector<int> at_vec = client["at"].get<std::vector<int>>();
+        std::vector<int> size_vec = client["size"].get<std::vector<int>>();
+        pos.at = { at_vec[0], at_vec[1] };
+        pos.size = { size_vec[0], size_vec[1] };
+        found = true;
+        break;
         }
     }
     if (!found) return false;

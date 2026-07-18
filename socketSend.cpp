@@ -187,24 +187,15 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
 //Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
-
-    // well we can do this std::vector<int> at = jsonData["at"].get<std::vector<int>>();
-    for (const auto& jsonData: data) {
+    for (const auto& jsonData : data) {
         if (jsonData["address"] == address) {
-            // std::cout << "Found window title: " << jsonData["title"] << std::endl;
-            // output = {jsonData["at"], jsonData["size"]};
-
-            output.at = jsonData["at"].get<std::vector<int>>();
-            output.size = jsonData["size"].get<std::vector<int>>();
-
+            std::vector<int> at_vec = jsonData["at"].get<std::vector<int>>();
+            std::vector<int> size_vec = jsonData["size"].get<std::vector<int>>();
+            output.at = { at_vec[0], at_vec[1] };
+            output.size = { size_vec[0], size_vec[1] };
             return 0;
         }
     }
-
-    // if (!found) {
-    //     std::cerr << "queryPosWindow: no matching address found for " << address << std::endl;
-    // }
-
     return 1;
 }
 

@@ -1,25 +1,148 @@
 # HyprLarp
-Tools to Larp more efficiently.
+A Hyprland utility that transforms multiple Kitty terminal windows into a single synchronized video canvas.
 
-> HyprLarp is a Hyprland terminal video viewer with dynamic layout changing based on its position relative to other terminal.
+HyprLarp automatically detects the layout of terminal windows on a workspace, calculates the visible region of each window, and renders only the appropriate portion of the video using the Kitty Graphics Protocol.
 
-> HyprLarp consist of its CLI and GUI (with the -s flag).
+---
+## Preview
+
+<p align="center">
+    <img src="docs/demo.gif" alt="HyprLarp Demo">
+</p>
+
+---
+## How It Works
+
+HyprLarp consist of producer and consumer.
+
+The producer process is responsible for
+
+- Reading the video
+- Monitoring Hyprland events
+- Detecting terminal geometry
+- Computing viewport layouts
+
+The resulting layout will be given to each consumer.
+Each consumer only renders the portion of the video visible inside its terminal window.
+
+---
+
+## Requirements
+
+
+Currently supported on
+
+- Arch Linux
+- Hyprland
+- Kitty Terminal
+
+Dependencies include
+
+- FFmpeg
+- simdjson
+- Qt6
+- CMake
+
+---
+
 
 ## Instalation
-Currently, HyprLarp only maintained for Arch based distros.
-> yay -S HyprLarp
+### AUR
 
-## Usage
-> Run HyprLarp -s to innitiate the setting before running the video.
-> Run HyprLarp in few terminal
+```bash
+yay -S hyprlarp
+```
 
-## Flag
-    -h, --help      Show this message and exit
-    -s, --setting   Launch configuration GUI tools to setup the config file (~/.config/HyprLarp.json)
-    -p, --producer  Launch HyprLarp producer process only with their logs.
-                
-## Use of AI
-1. The calculation part of the video layout.
-2. GUI color and widget scheme.
-3. Friking debubging and loging.
+### Build from source
 
+```bash
+git clone https://github.com/AmmarSyamil/HyprLarp.git
+
+cd HyprLarp
+
+mkdir build
+cd build
+
+cmake ..
+make
+
+sudo make install
+```
+
+---
+## Usage 
+Launch the configuration utility
+
+```bash
+HyprLarp -s # Or HyprLarp --setting
+```
+
+Start the producer manually
+
+```bash
+HyprLarp -p # Or HyprLarp --producer
+```
+
+Normal usage
+
+```bash
+HyprLarp
+```
+
+Display help
+
+```bash
+HyprLarp -h # Or HyprLarp --help
+```
+
+## Configuration
+Configuration file is set by the configuration utility (-s flag).
+
+```text
+~/.config/HyprLarp.json
+```
+
+Example
+
+```json
+{
+    "videoPath": "/home/user/Videos/demo.mp4",
+
+    "cornerLocation": [
+        [0, 0],
+        [1920, 0],
+        [0, 1080],
+        [1920, 1080]
+    ]
+}
+```
+
+## Limitations
+
+Current limitations
+
+- Kitty terminal only
+- Hyprland only
+- Single-workspace rendering
+- Linux only
+- Only maintained for Arch based distros
+
+---
+
+## AI Usage
+
+Artificial intelligence was used as a development assistant for
+
+- debugging difficult geometry calculations
+- discussing viewport algorithms
+- GUI prototyping
+- documentation improvements
+
+All architectural decisions, implementation, testing, and final code were completed and reviewed manually.
+
+---
+
+
+## License
+
+MIT License

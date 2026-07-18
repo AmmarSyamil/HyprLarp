@@ -118,52 +118,55 @@ int main(int argc, char* argv[]) {
         }
     
         // Run both prodducer (in baground) and consumer
+        // Run both producer (in background) and consumer
         if (guard.is_first_instance()) {
-        pid_t pid = fork();
-        if (pid == -1) {
-            std::cerr << "fork() failed\n";
-            return -1;
-        }
-
-        if (pid == 0) {
-            int devnull_out = open("/dev/null", O_WRONLY);
-            int devnull_in  = open("/dev/null", O_RDONLY);
-            if (devnull_out != -1) {
-                dup2(devnull_out, STDOUT_FILENO);
-                close(devnull_out);
-            }
-            if (devnull_in != -1) {
-                dup2(devnull_in, STDIN_FILENO);
-                close(devnull_in);
-            }
-            int log_fd = open("/tmp/hyprlarp_producer.log", O_CREAT | O_WRONLY | O_TRUNC, 0666);
-            if (log_fd != -1) {
-                dup2(log_fd, STDERR_FILENO);
-                close(log_fd);
-            }
-            mainProducer();
-            _exit(0);
-        }
-
-    } else {
-        int fd = -1;
-        for (int i = 0; i < 100; ++i) {  //  10 seconds
-            fd = shm_open("/HyprLarp-Producer", O_RDWR, 0);
-            if (fd >= 0) {
-                close(fd);
-                    break;  
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-
-            if (fd < 0) {
-                std::cerr << "Producer failed to start in time!\n";
+            pid_t pid = fork();
+            if (pid == -1) {
+                std::cerr << "fork() failed\n";
                 return -1;
             }
 
-        signal(SIGCHLD, SIG_IGN);
-        mainConsumer();
-    }
+            if (pid == 0) {
+                int devnull_out = open("/dev/null", O_WRONLY);
+                int devnull_in  = open("/dev/null", O_RDONLY);
+                if (devnull_out != -1) {
+                    dup2(devnull_out, STDOUT_FILENO);
+                    close(devnull_out);
+                }
+                if (devnull_in != -1) {
+                    dup2(devnull_in, STDIN_FILENO);
+                    close(devnull_in);
+                }
+                int log_fd = open("/tmp/hyprlarp_producer.log",
+                                  O_CREAT | O_WRONLY | O_TRUNC, 0666);
+                if (log_fd != -1) {
+                    dup2(log_fd, STDERR_FILENO);
+                    close(log_fd);
+                }
+                mainProducer();
+                _exit(0);
+            } else {
+                int fd = -1;
+                for (int i = 0; i < 100; ++i) {  // up to 10 seconds
+                    fd = shm_open("/HyprLarp-Producer", O_RDWR, 0);
+                    if (fd >= 0) {
+                        close(fd);
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+
+                if (fd < 0) {
+                    std::cerr << "Producer failed to start in time!\n";
+                    return -1;
+                }
+
+                signal(SIGCHLD, SIG_IGN);
+                mainConsumer();
+            }
+        } else {
+            mainConsumer();
+        }
         
     } catch (const std::runtime_error& e) {
         std::cerr << "HyprLarp Failed to launch " << e.what() << std::endl;
@@ -363,24 +366,15 @@ int GetWindowsPropertiesData(nlohmann::json& outputData) {
 
 //Function to get the window address from the PID of the process
 int queryPosWindow(const nlohmann::json data, const std::string& address, WindowPos& output) {
-
-    // well we can do this std::vector<int> at = jsonData["at"].get<std::vector<int>>();
-    for (const auto& jsonData: data) {
+    for (const auto& jsonData : data) {
         if (jsonData["address"] == address) {
-            // std::cout << "Found window title: " << jsonData["title"] << std::endl;
-            // output = {jsonData["at"], jsonData["size"]};
-
-            output.at = jsonData["at"].get<std::vector<int>>();
-            output.size = jsonData["size"].get<std::vector<int>>();
-
+            std::vector<int> at_vec = jsonData["at"].get<std::vector<int>>();
+            std::vector<int> size_vec = jsonData["size"].get<std::vector<int>>();
+            output.at = { at_vec[0], at_vec[1] };
+            output.size = { size_vec[0], size_vec[1] };
             return 0;
         }
     }
-
-    // if (!found) {
-    //     std::cerr << "queryPosWindow: no matching address found for " << address << std::endl;
-    // }
-
     return 1;
 }
 
@@ -847,11 +841,68 @@ extern "C" {
     #include <libavformat/avformat.h>
 }
 
+#include <mutex>
+#include <optional>
+
+static std::optional<videoData> g_cachedVideoData;
+static std::string g_cachedVideoPath;
+static std::mutex g_videoCacheMutex;
+
+// Cached accessor – reads metadata only once per video file path
+static const videoData& getCachedVideoData(const std::string& path) {
+    std::lock_guard<std::mutex> lock(g_videoCacheMutex);
+
+    if (g_cachedVideoData && g_cachedVideoPath == path) {
+        return *g_cachedVideoData;
+    }
+
+    // Otherwise open the file and read metadata
+    videoData vd;
+    vd.videoPath = path;
+
+    AVFormatContext* format_ctx = nullptr;
+    if (avformat_open_input(&format_ctx, path.c_str(), nullptr, nullptr) != 0) {
+        throw std::runtime_error("Failed to open video: " + path);
+    }
+    if (avformat_find_stream_info(format_ctx, nullptr) < 0) {
+        avformat_close_input(&format_ctx);
+        throw std::runtime_error("Failed to find stream info for: " + path);
+    }
+
+    bool found_video = false;
+    for (unsigned int i = 0; i < format_ctx->nb_streams; ++i) {
+        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            AVCodecParameters* codec_params = format_ctx->streams[i]->codecpar;
+            AVStream* stream = format_ctx->streams[i];
+            vd.video_w = codec_params->width;
+            vd.video_h = codec_params->height;
+            if (stream->avg_frame_rate.den > 0) {
+                vd.fps = static_cast<double>(stream->avg_frame_rate.num) /
+                         stream->avg_frame_rate.den;
+            }
+            found_video = true;
+            break;
+        }
+    }
+    avformat_close_input(&format_ctx);
+
+    if (!found_video) {
+        throw std::runtime_error("No video stream found in: " + path);
+    }
+
+    g_cachedVideoData = vd;
+    g_cachedVideoPath = path;
+    return *g_cachedVideoData;
+}
+
 static WindowPos windowPosFromClient(const nlohmann::json& client) {
-    return {
-        client["at"].get<std::vector<int>>(),
-        client["size"].get<std::vector<int>>()
-    };
+    WindowPos pos;
+    std::vector<int> at_vec = client["at"].get<std::vector<int>>();
+    std::vector<int> size_vec = client["size"].get<std::vector<int>>();
+    // Assume exactly 2 elements (Hyprland always returns [x, y])
+    pos.at = { at_vec[0], at_vec[1] };
+    pos.size = { size_vec[0], size_vec[1] };
+    return pos;
 }
 
 // Prefer the last matching client entry; Hyprland can briefly emit duplicates
@@ -1030,7 +1081,8 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     GetWindowPosCartesian();
 
-    GetVideoData();
+    // GetVideoData();
+    this->vidData = getCachedVideoData(this->vidData.videoPath);
 
     // Setup viewport
     // GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
@@ -1069,7 +1121,8 @@ WindowData::WindowData(int windowType, std::string windowID, const WindowPos& po
         this->internalTerminalGeometry.grid_screen_y
     };
     GetWindowPosCartesian();
-    GetVideoData();
+    // GetVideoData();
+    this->vidData = getCachedVideoData(this->vidData.videoPath);
     layoutCalculation(vpos.video_left, vpos.video_top, vpos.video_right, vpos.video_bottom,
                       this->internalTerminalGeometry, this->viewPort, this->windowPos, this->vidData, this->layoutRender);
 }
@@ -1224,6 +1277,9 @@ static void PrintVec(std::ostream& os, const std::vector<int>& vec) {
 
     os << "]";
 }
+static void PrintVec(std::ostream& os, const std::array<int, 2>& arr) {
+    os << "[" << arr[0] << ", " << arr[1] << "]";
+}
 
 std::ostream& operator<<(std::ostream& os, const WindowData& wd) {
     os << "WindowData {\n";
@@ -1319,22 +1375,23 @@ int WorkspaceData::setWorkspaceIDStartup() {
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
+#include <array>
 // #include "simdjson.h"
 #include "checkTerminal.hpp"
 
 struct WindowPos {
-    std::vector<int> at; // x/y
-    std::vector<int> size; // w/h
+    std::array<int, 2> at;   // x, y
+    std::array<int, 2> size; // w, h
 };
 
 
 // Cartesian position in [x, y]
 // Yeah i think i dont need this cuz i need at and size instead lmao
 struct WindowPosCartesian {
-    std::vector<int> topLeft; // top left point
-    std::vector<int> topRight; // top right point
-    std::vector<int> bottomLeft; // bottom left point
-    std::vector<int> bottomRight; // bottom right point
+    std::array<int, 2> topLeft;
+    std::array<int, 2> topRight;
+    std::array<int, 2> bottomLeft;
+    std::array<int, 2> bottomRight;
 };
 
 struct InternalTerminalGeometry {
@@ -2223,6 +2280,7 @@ int mainProducer() {
     // Loop the video repeatedly
     int loop_count = 0;
     while (true) {
+        auto producerStartTime = std::chrono::steady_clock::now();
 
         
         
@@ -5053,11 +5111,13 @@ bool computeConsumerLayout(pid_t terminalPid, int video_w, int video_h,
     WindowPos pos;
     bool found = false;
     for (const auto& client : clients) {
-        if (client.contains("pid") && client["pid"].get<pid_t>() == terminalPid) {
-            pos.at   = client["at"].get<std::vector<int>>();
-            pos.size = client["size"].get<std::vector<int>>();
-            found = true;
-            break;
+    if (client.contains("pid") && client["pid"].get<pid_t>() == terminalPid) {
+        std::vector<int> at_vec = client["at"].get<std::vector<int>>();
+        std::vector<int> size_vec = client["size"].get<std::vector<int>>();
+        pos.at = { at_vec[0], at_vec[1] };
+        pos.size = { size_vec[0], size_vec[1] };
+        found = true;
+        break;
         }
     }
     if (!found) return false;
