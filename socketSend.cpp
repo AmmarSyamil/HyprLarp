@@ -18,8 +18,13 @@
 #include <poll.h>
 #include <cstring>
 #include <cerrno>
-
+#include <optional>
 #include "hyprlandIPC.hpp"
+
+static std::optional<nlohmann::json> g_cached_clients;
+static std::chrono::steady_clock::time_point g_last_fetch;
+static std::mutex g_cache_mutex;
+static const auto CACHE_TTL = std::chrono::milliseconds(100);
 
 nlohmann::json convertSimdjsonToNlohmann(const simdjson::dom::element& el) {
     if (el.is_object()) {
@@ -43,15 +48,6 @@ nlohmann::json convertSimdjsonToNlohmann(const simdjson::dom::element& el) {
     } else {
         return nlohmann::json();
     }
-}
-
-// Function that being called
-static void hb(const char* where) {
-    static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
-    auto now = std::chrono::steady_clock::now().time_since_epoch();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
-    dbg << ms << " " << where << std::endl;
-    dbg.flush();
 }
 
 int connect_hyprland_socket(int sock, const std::string& path) {
@@ -136,9 +132,30 @@ int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
 }
 
 int GetWindowsPropertiesData(nlohmann::json& outputData) {
+    std::lock_guard<std::mutex> lock(g_cache_mutex);
+    auto now = std::chrono::steady_clock::now();
+
+    // check cache
+    if (g_cached_clients.has_value() && (now - g_last_fetch) < CACHE_TTL) {
+        outputData = *g_cached_clients;
+        return 0;
+    }
+
     simdjson::dom::element elem;
-    if (HyprlandIPC::instance().getClients(elem) != 0) return 1;
-    outputData = convertSimdjsonToNlohmann(elem);
+    if (HyprlandIPC::instance().getClients(elem) != 0) {
+                if (g_cached_clients.has_value()) {
+            outputData = *g_cached_clients;
+            // return 0 to indicate success (data might be stale)
+            return 0;
+        }
+        return 1;
+
+        
+    };
+    nlohmann::json fresh = convertSimdjsonToNlohmann(elem);
+    g_cached_clients = fresh;
+    g_last_fetch = now;
+    outputData = fresh;
     return 0;
 }
 
@@ -203,54 +220,8 @@ int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& ou
     return queryWindowAddress(*data, address, outputData);
 }
 
-
-// int GetWindowsPropertiesData(nlohmann::json& outputData) {
-//     // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-//     // if (sock < 0) {
-//     //     std::cerr << "Socket sends (.sock) connection failed at making sock\n";
-//     //     return 1;
-//     // }
-
-//     // std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
-
-//     // hb("before_connect");
-//     // if (connect_hyprland_socket(sock, path) != 0) {
-//     //     hb("after_connect_error");
-//     //     std::cerr << "GetWindowsPropertiesData: connect failed\n";
-//     //     close(sock);
-//     //     return 1;
-//     // }
-//     // hb("after_connect");
-
-//     // std::string response;
-//     // if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
-//     //     std::cerr << "GetWindowsPropertiesData: send/recv failed\n";
-//     //     close(sock);
-//     //     return 1;
-//     // }
-//     // hb("after_recv");
-
-//     // close(sock);
-
-//     // if (response.empty()) {
-//     //     std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
-//     //     return 1;
-//     // }
-
-//     // try {
-//     //     outputData = nlohmann::json::parse(response);
-//     // } catch (const nlohmann::json::parse_error& e) {
-//     //     std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
-//     //     return 1;
-//     // }
-
-//     // return 0;
-//     return HyprlandIPC::instance().getClients(outputData);
-// }
-
 // Get all of window ID with the same workspaceID
-nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID) {
-    nlohmann::json output;
+nlohmann::json GetAllWindowOfaWorkspaceID(const nlohmann::json& data, int workspaceID) {    nlohmann::json output;
     for (const auto& jsonData: data) {
         if (jsonData["workspace"]["id"] == workspaceID) {
             // std::cout << jsonData["title"] << std::endl;

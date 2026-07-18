@@ -68,28 +68,21 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
         std::ofstream test_file("test.txt", std::ios::app);
 
         // get each line of it and save it as a list of the string eacch line.
+        std::vector<std::string> batch;
         while ((pos = dataBuffer.find('\n')) != std::string::npos) {
-            // Setup and lock mutex
-            // std::mutex socketDataMutex;
-            dataMutex.lock();
-
             std::string line = dataBuffer.substr(0, pos);
-
-            // Operation to filer out non "activewindowv2"
             if (line.starts_with("activewindowv2")) {
-//                 std::cout << "theres active windowv2" << std::endl;
-
-                // Put the line in the data
-                data.push_back(line);
-
-                // Test file implementation
-                test_file << line << '\n';
-                test_file.flush();
+                batch.push_back(std::move(line));   // avoid copies
             }
+            dataBuffer.erase(0, pos + 1);
+        }
 
-            dataBuffer.erase(0, pos+1);
-
-            dataMutex.unlock(); // Unlock mutex
+        // Lock once and add all to the shared vector
+        if (!batch.empty()) {
+            std::lock_guard<std::mutex> lock(dataMutex);
+            data.insert(data.end(),
+                        std::make_move_iterator(batch.begin()),
+                        std::make_move_iterator(batch.end()));
         }
     }
 
