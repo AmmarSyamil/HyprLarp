@@ -2171,8 +2171,8 @@ int mainProducer() {
 
     // Loop the video repeatedly
     int loop_count = 0;
+    auto producerStartTime = std::chrono::steady_clock::now();
     while (true) {
-        auto producerStartTime = std::chrono::steady_clock::now();
 
         
         
@@ -2403,7 +2403,8 @@ public:
 
         // Perform scaling conversion using cached context
         sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
-        
+        // sws_scale(sws_ctx, frame->data, frame->linesize, 0, codec_ctx->height, dstData, dstLinesize);
+
         if (!shm) {
             std::cerr << "SHM pointer is null!" << std::endl;
             av_freep(&dstData[0]);
@@ -2413,6 +2414,7 @@ public:
         // Put data inside the SHM
         int slot = frame_counter % RING_BUFFER_SLOTS;
         writeFrameToSlot(shm, slot, dstData[0], frame_counter);
+        // writeFrameToSlotStrided(shm, slot, dstData[0], dstLinesize[0], frame_counter);
 
         // Cleanup
         av_freep(&dstData[0]);
@@ -2879,6 +2881,32 @@ int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
     return 1;
 }
 
+int writeFrameToSlotStrided(void* shmPtr, int slot_index_target, const uint8_t* src, int src_stride, int frame_number) {
+    controlHeader* header = reinterpret_cast<controlHeader*>(shmPtr);
+    int dst_stride = header->stride;
+    int height = header->height;
+    int dst_data_size = dst_stride * height;
+
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2, std::memory_order_release);
+
+    uint8_t* slotLocation = slotPtr(shmPtr, slot_index_target, dst_data_size);
+
+    int row_bytes = std::min(src_stride, dst_stride);
+    for (int y = 0; y < height; ++y) {
+        std::memcpy(slotLocation + y * dst_stride, src + y * src_stride, row_bytes);
+    }
+
+    // Mark slot clean (odd sequence) after writing - same pattern as writeFrameToSlot
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2 + 1, std::memory_order_release);
+
+    header->global_sequences.store(frame_number, std::memory_order_release);
+    header->write_slot_index.store(slot_index_target, std::memory_order_release);
+
+    // tlog("PRODUCER", "committed frame=" + std::to_string(frame_number) + " slot=" + std::to_string(slot_index_target));
+
+    return 1;
+}
+
 // Alternatve to putSHM function
 // Instead of writing to the SHM at offset 0, this function writes to a specific slot in the ring buffer
 // Used for producer to write to a specific slot in the ring buffer
@@ -2979,7 +3007,7 @@ int deleteSHM();
 std::vector<int> getImageSHM();
 int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data, int frame_number);
 int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer);
-
+int writeFrameToSlotStrided(void* shmPtr, int slot_index_target, const uint8_t* src, int src_stride, int frame_number);
 
 
 =========================================
@@ -4340,10 +4368,14 @@ int mainConsumer() {
     // cons.setupSHM();    // Create and initialize the SHM 
 
     // wait producer and layout to be ready 
+    int attempts = 0;
     while (!cons.init()) {
-        static int wait_count = 0;
-        if (++wait_count % 20 == 0)   // print every ~1 second
+        if (++attempts % 20 == 0)
             std::cerr << "Waiting for producer and layout...\n";
+        if (attempts > 200) {   // 10 seconds
+            std::cerr << "Timeout: producer failed to start. Exiting.\n";
+            return -1;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
@@ -5317,4 +5349,37 @@ public:
     static HyprlandIPC& instance();
     int getClients(simdjson::dom::element& output);
     int getOption(const std::string& option, simdjson::dom::element& output);
+};
+=========================================
+ FILE: layoutSHM.hpp (Auto-located)
+=========================================
+#pragma once
+#include <cstdint>
+#include <atomic>
+#include <cstring>
+
+constexpr int MAX_WINDOWS = 32;
+
+// POD struct so it survives mmap cleanly
+struct WindowLayoutEntry {
+    char windowAddress[24]; // Hyprland address like "0x1234abcd"
+    uint32_t pid;
+    uint32_t valid;         // 0 = empty, 1 = valid
+
+    // Layout render data
+    int32_t x, y, w, h;
+    int32_t cursor_col, cursor_row;
+    int32_t disp_cols, disp_rows;
+    int32_t sub_offset_x, sub_offset_y;
+
+    // Viewport state
+    uint32_t isRender;
+    int32_t overlap_x, overlap_y, overlap_w, overlap_h;
+};
+
+struct alignas(64) LayoutHeader {
+    std::atomic<uint64_t> version; // Bumped when layout changes
+    std::atomic<uint32_t> count;   // Number of valid windows
+    uint32_t _pad[14];
+    WindowLayoutEntry entries[MAX_WINDOWS];
 };

@@ -35,5 +35,5 @@ int deleteSHM();
 std::vector<int> getImageSHM();
 int writeFrameToSlot(void* shmPtr, int slot_index_target, const void* frame_data, int frame_number);
 int readFrameFromSlot(void* shmPtr, int slot_index_target, uint8_t* local_buffer);
-
+int writeFrameToSlotStrided(void* shmPtr, int slot_index_target, const uint8_t* src, int src_stride, int frame_number);
 

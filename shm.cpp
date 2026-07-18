@@ -280,6 +280,7 @@ std::vector<int> getImageSHM() {
 // Function to delete the SHM
 int deleteSHM() {
     shm_unlink(normalizeSHMName("/Hyprlarp-Producer").c_str());
+    shm_unlink("/HyprLarp_layout");
     return 1;
 };
 
@@ -296,6 +297,32 @@ int putSHM(uint8_t* shmPtr, const void* data, size_t data_size) {
     memcpy(shmPtr, data, data_size);
 
 //     std::cout << "putSHM : post memcpy" << std::endl;
+
+    return 1;
+}
+
+int writeFrameToSlotStrided(void* shmPtr, int slot_index_target, const uint8_t* src, int src_stride, int frame_number) {
+    controlHeader* header = reinterpret_cast<controlHeader*>(shmPtr);
+    int dst_stride = header->stride;
+    int height = header->height;
+    int dst_data_size = dst_stride * height;
+
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2, std::memory_order_release);
+
+    uint8_t* slotLocation = slotPtr(shmPtr, slot_index_target, dst_data_size);
+
+    int row_bytes = std::min(src_stride, dst_stride);
+    for (int y = 0; y < height; ++y) {
+        std::memcpy(slotLocation + y * dst_stride, src + y * src_stride, row_bytes);
+    }
+
+    // Mark slot clean (odd sequence) after writing - same pattern as writeFrameToSlot
+    header->slotMetadata[slot_index_target].sequence.store(frame_number * 2 + 1, std::memory_order_release);
+
+    header->global_sequences.store(frame_number, std::memory_order_release);
+    header->write_slot_index.store(slot_index_target, std::memory_order_release);
+
+    // tlog("PRODUCER", "committed frame=" + std::to_string(frame_number) + " slot=" + std::to_string(slot_index_target));
 
     return 1;
 }

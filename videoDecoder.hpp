@@ -104,7 +104,8 @@ public:
 
         // Perform scaling conversion using cached context
         sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
-        
+        // sws_scale(sws_ctx, frame->data, frame->linesize, 0, codec_ctx->height, dstData, dstLinesize);
+
         if (!shm) {
             std::cerr << "SHM pointer is null!" << std::endl;
             av_freep(&dstData[0]);
@@ -113,7 +114,8 @@ public:
         
         // Put data inside the SHM
         int slot = frame_counter % RING_BUFFER_SLOTS;
-        writeFrameToSlot(shm, slot, dstData[0], frame_counter);
+        // writeFrameToSlot(shm, slot, dstData[0], frame_counter);
+        writeFrameToSlotStrided(shm, slot, dstData[0], dstLinesize[0], frame_counter);
 
         // Cleanup
         av_freep(&dstData[0]);

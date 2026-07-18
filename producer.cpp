@@ -178,8 +178,8 @@ int mainProducer() {
 
     // Loop the video repeatedly
     int loop_count = 0;
+    auto producerStartTime = std::chrono::steady_clock::now();
     while (true) {
-        auto producerStartTime = std::chrono::steady_clock::now();
 
         
         

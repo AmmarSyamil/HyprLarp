@@ -241,10 +241,14 @@ int mainConsumer() {
     // cons.setupSHM();    // Create and initialize the SHM 
 
     // wait producer and layout to be ready 
+    int attempts = 0;
     while (!cons.init()) {
-        static int wait_count = 0;
-        if (++wait_count % 20 == 0)   // print every ~1 second
+        if (++attempts % 20 == 0)
             std::cerr << "Waiting for producer and layout...\n";
+        if (attempts > 200) {   // 10 seconds
+            std::cerr << "Timeout: producer failed to start. Exiting.\n";
+            return -1;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 

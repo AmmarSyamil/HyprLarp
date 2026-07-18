@@ -22,7 +22,8 @@ set raw_files \
     ../terminalLayout.cpp \
     ../consumerLayout.cpp \
     ../consumerRegistry.cpp \
-    ../hyprlandIPC.cpp
+    ../hyprlandIPC.cpp \
+    ../layoutSHM.cpp
 
 set printed_files
 
