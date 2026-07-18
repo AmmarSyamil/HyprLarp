@@ -26,6 +26,7 @@ add_executable(hyprlarp
     ../terminalLayout.cpp
     ../consumerLayout.cpp
     ../consumerRegistry.cpp
+    ../hyprlandIPC.cpp
 )
 
 

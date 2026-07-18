@@ -145,6 +145,13 @@ int setupWorkspaceData() {
 int mainProducer() {
     std::signal(SIGINT, handle_signal);
     std::signal(SIGTERM, handle_signal);
+    std::signal(SIGPIPE, SIG_IGN);
+
+    FILE* log = fopen("/tmp/hyprlarp_producer_start.log", "w");
+    if (log) {
+        fprintf(log, "mainProducer started at %ld\n", time(nullptr));
+        fclose(log);
+    }
 
     // WorkspaceData
     setupWorkspaceData();
@@ -172,6 +179,7 @@ int mainProducer() {
     // Loop the video repeatedly
     int loop_count = 0;
     while (true) {
+        auto producerStartTime = std::chrono::steady_clock::now();
 
         
         
@@ -188,10 +196,17 @@ int mainProducer() {
         auto now = std::chrono::steady_clock::now();
         if (now - lastCheck > std::chrono::seconds(2)) {
             if (!(checkConsumerState())) {
-                std::cerr << "No consumers alive, producer exiting.\n";
-                break;   // exit the while loop
+                auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - producerStartTime);
+                
+                if (uptime.count() > 10) {
+                    std::cerr << "No consumers alive, producer exiting.\n";
+                    break;
+                } else {
+                    std::cerr << "No consumers yet, waiting... (" << uptime.count() << "s)\n";
+                }
+            } else {
+                lastCheck = now; 
             }
-            lastCheck = now;
         }
     }
 

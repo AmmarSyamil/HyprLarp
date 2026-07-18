@@ -21,7 +21,8 @@ set raw_files \
     ../base64converter.cpp \
     ../terminalLayout.cpp \
     ../consumerLayout.cpp \
-    ../consumerRegistry.cpp
+    ../consumerRegistry.cpp \
+    ../hyprlandIPC.cpp
 
 set printed_files
 

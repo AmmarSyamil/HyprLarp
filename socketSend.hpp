@@ -23,3 +23,5 @@ int GetWindowAddress(std::string address, std::mutex& dataMutex, std::string& ou
 nlohmann::json GetAllWindowOfaWorkspaceID(nlohmann::json data, int workspaceID);
 
 int GetHyprlandOption(const std::string& option, nlohmann::json& output);
+int connect_hyprland_socket(int sock, const std::string& path);
+int send_and_receive_json(int sock, const std::string& cmd, std::string& response, int timeout_ms = 200);

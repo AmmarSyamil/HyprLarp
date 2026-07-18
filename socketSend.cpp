@@ -19,6 +19,8 @@
 #include <cstring>
 #include <cerrno>
 
+#include "hyprlandIPC.hpp"
+
 // Function that being called
 static void hb(const char* where) {
     static std::ofstream dbg("/tmp/hyprlarp_heartbeat.log", std::ios::app);
@@ -28,7 +30,7 @@ static void hb(const char* where) {
     dbg.flush();
 }
 
-static int connect_hyprland_socket(int sock, const std::string& path) {
+int connect_hyprland_socket(int sock, const std::string& path) {
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path.c_str());
@@ -64,9 +66,9 @@ static int connect_hyprland_socket(int sock, const std::string& path) {
     return 0;
 }
 
-static int send_and_receive_json(int sock, const std::string& cmd, std::string& response, int timeout_ms = 200) {
+int send_and_receive_json(int sock, const std::string& cmd, std::string& response, int timeout_ms = 200) {
     // Send
-    if (send(sock, cmd.c_str(), cmd.size(), 0) < 0) {
+    if (send(sock, cmd.c_str(), cmd.size(), MSG_NOSIGNAL) < 0) {  // ← MSG_NOSIGNAL
         return -1;
     }
 
@@ -103,83 +105,83 @@ static int send_and_receive_json(int sock, const std::string& cmd, std::string& 
 }
 
 int GetHyprlandOption(const std::string& option, nlohmann::json& output) {
-    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sock < 0) {
-        std::cerr << "GetHyprlandOption: socket creation failed\n";
-        return 1;
-    }
+    // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    // if (sock < 0) {
+    //     std::cerr << "GetHyprlandOption: socket creation failed\n";
+    //     return 1;
+    // }
 
-    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" +
-                       getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
+    // std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
 
-    if (connect_hyprland_socket(sock, path) != 0) {
-        std::cerr << "GetHyprlandOption: connect failed\n";
-        close(sock);
-        return 1;
-    }
+    // if (connect_hyprland_socket(sock, path) != 0) {
+    //     std::cerr << "GetHyprlandOption: connect failed\n";
+    //     close(sock);
+    //     return 1;
+    // }
 
-    std::string command = "j/getoption " + option;
-    std::string response;
-    if (send_and_receive_json(sock, command, response, 200) != 0) {
-        std::cerr << "GetHyprlandOption: send/recv failed\n";
-        close(sock);
-        return 1;
-    }
+    // std::string command = "j/getoption " + option;
+    // std::string response;
+    // if (send_and_receive_json(sock, command, response, 200) != 0) {
+    //     std::cerr << "GetHyprlandOption: send/recv failed\n";
+    //     close(sock);
+    //     return 1;
+    // }
 
-    close(sock);
+    // close(sock);
 
-    try {
-        output = nlohmann::json::parse(response);
-    } catch (const nlohmann::json::parse_error& e) {
-        std::cerr << "GetHyprlandOption: JSON parse failed: " << e.what() << "\n";
-        return 1;
-    }
+    // try {
+    //     output = nlohmann::json::parse(response);
+    // } catch (const nlohmann::json::parse_error& e) {
+    //     std::cerr << "GetHyprlandOption: JSON parse failed: " << e.what() << "\n";
+    //     return 1;
+    // }
 
-    return 0;
+    // return 0;
+    return HyprlandIPC::instance().getOption(option, output);
 }
 
 int GetWindowsPropertiesData(nlohmann::json& outputData) {
-    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sock < 0) {
-        std::cerr << "Socket sends (.sock) connection failed at making sock\n";
-        return 1;
-    }
+    // int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    // if (sock < 0) {
+    //     std::cerr << "Socket sends (.sock) connection failed at making sock\n";
+    //     return 1;
+    // }
 
-    std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" +
-                       getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
+    // std::string path = std::string(getenv("XDG_RUNTIME_DIR")) + "/hypr/" + getenv("HYPRLAND_INSTANCE_SIGNATURE") + "/.socket.sock";
 
-    hb("before_connect");
-    if (connect_hyprland_socket(sock, path) != 0) {
-        hb("after_connect_error");
-        std::cerr << "GetWindowsPropertiesData: connect failed\n";
-        close(sock);
-        return 1;
-    }
-    hb("after_connect");
+    // hb("before_connect");
+    // if (connect_hyprland_socket(sock, path) != 0) {
+    //     hb("after_connect_error");
+    //     std::cerr << "GetWindowsPropertiesData: connect failed\n";
+    //     close(sock);
+    //     return 1;
+    // }
+    // hb("after_connect");
 
-    std::string response;
-    if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
-        std::cerr << "GetWindowsPropertiesData: send/recv failed\n";
-        close(sock);
-        return 1;
-    }
-    hb("after_recv");
+    // std::string response;
+    // if (send_and_receive_json(sock, "j/clients", response, 200) != 0) {
+    //     std::cerr << "GetWindowsPropertiesData: send/recv failed\n";
+    //     close(sock);
+    //     return 1;
+    // }
+    // hb("after_recv");
 
-    close(sock);
+    // close(sock);
 
-    if (response.empty()) {
-        std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
-        return 1;
-    }
+    // if (response.empty()) {
+    //     std::cerr << "GetWindowsPropertiesData: empty response from Hyprland\n";
+    //     return 1;
+    // }
 
-    try {
-        outputData = nlohmann::json::parse(response);
-    } catch (const nlohmann::json::parse_error& e) {
-        std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
-        return 1;
-    }
+    // try {
+    //     outputData = nlohmann::json::parse(response);
+    // } catch (const nlohmann::json::parse_error& e) {
+    //     std::cerr << "GetWindowsPropertiesData: JSON parse failed: " << e.what() << "\n";
+    //     return 1;
+    // }
 
-    return 0;
+    // return 0;
+    return HyprlandIPC::instance().getClients(outputData);
 }
 
 

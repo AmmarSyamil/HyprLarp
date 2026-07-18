@@ -6,22 +6,23 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <unordered_set>
+#include <array>
 // #include "simdjson.h"
 #include "checkTerminal.hpp"
 
 struct WindowPos {
-    std::vector<int> at; // x/y
-    std::vector<int> size; // w/h
+    std::array<int, 2> at;   // x, y
+    std::array<int, 2> size; // w, h
 };
 
 
 // Cartesian position in [x, y]
 // Yeah i think i dont need this cuz i need at and size instead lmao
 struct WindowPosCartesian {
-    std::vector<int> topLeft; // top left point
-    std::vector<int> topRight; // top right point
-    std::vector<int> bottomLeft; // bottom left point
-    std::vector<int> bottomRight; // bottom right point
+    std::array<int, 2> topLeft;
+    std::array<int, 2> topRight;
+    std::array<int, 2> bottomLeft;
+    std::array<int, 2> bottomRight;
 };
 
 struct InternalTerminalGeometry {

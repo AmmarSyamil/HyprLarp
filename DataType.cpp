@@ -25,12 +25,69 @@ extern "C" {
     #include <libavformat/avformat.h>
 }
 
-static WindowPos windowPosFromClient(const nlohmann::json& client) {
-    return {
-        client["at"].get<std::vector<int>>(),
-        client["size"].get<std::vector<int>>()
-    };
+#include <mutex>
+#include <optional>
+
+static std::optional<videoData> g_cachedVideoData;
+static std::string g_cachedVideoPath;
+static std::mutex g_videoCacheMutex;
+
+// Cached accessor – reads metadata only once per video file path
+static const videoData& getCachedVideoData(const std::string& path) {
+    std::lock_guard<std::mutex> lock(g_videoCacheMutex);
+
+    if (g_cachedVideoData && g_cachedVideoPath == path) {
+        return *g_cachedVideoData;
+    }
+
+    // Otherwise open the file and read metadata
+    videoData vd;
+    vd.videoPath = path;
+
+    AVFormatContext* format_ctx = nullptr;
+    if (avformat_open_input(&format_ctx, path.c_str(), nullptr, nullptr) != 0) {
+        throw std::runtime_error("Failed to open video: " + path);
+    }
+    if (avformat_find_stream_info(format_ctx, nullptr) < 0) {
+        avformat_close_input(&format_ctx);
+        throw std::runtime_error("Failed to find stream info for: " + path);
+    }
+
+    bool found_video = false;
+    for (unsigned int i = 0; i < format_ctx->nb_streams; ++i) {
+        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            AVCodecParameters* codec_params = format_ctx->streams[i]->codecpar;
+            AVStream* stream = format_ctx->streams[i];
+            vd.video_w = codec_params->width;
+            vd.video_h = codec_params->height;
+            if (stream->avg_frame_rate.den > 0) {
+                vd.fps = static_cast<double>(stream->avg_frame_rate.num) /
+                         stream->avg_frame_rate.den;
+            }
+            found_video = true;
+            break;
+        }
+    }
+    avformat_close_input(&format_ctx);
+
+    if (!found_video) {
+        throw std::runtime_error("No video stream found in: " + path);
+    }
+
+    g_cachedVideoData = vd;
+    g_cachedVideoPath = path;
+    return *g_cachedVideoData;
 }
+
+static WindowPos windowPosFromClient(const nlohmann::json& client) {
+    WindowPos pos;
+    std::vector<int> at_vec = client["at"].get<std::vector<int>>();
+    std::vector<int> size_vec = client["size"].get<std::vector<int>>();
+    // Assume exactly 2 elements (Hyprland always returns [x, y])
+    pos.at = { at_vec[0], at_vec[1] };
+    pos.size = { size_vec[0], size_vec[1] };
+    return pos;
+
 
 // Prefer the last matching client entry; Hyprland can briefly emit duplicates
 // during tiling animations and the later entry is usually the settled one.
@@ -145,8 +202,12 @@ videoPos jsonParser() {
 
 // Constructor 
 WorkspaceData::WorkspaceData() {
+    if (GetWindowsPropertiesData(WorkspaceData::data) != 0) {
+        throw std::runtime_error("Failed to get window properties from Hyprland");
+    }
+    
     // Pupulate the data part
-    GetWindowsPropertiesData(WorkspaceData::data);
+    // GetWindowsPropertiesData(WorkspaceData::data);
 
     // Change implementation to find main window
     WorkspaceData::setWorkspaceIDStartup();
@@ -204,7 +265,8 @@ WindowData::WindowData(int windowType, std::string windowID, nlohmann::json& dat
     // this->windowPosCartesian = ConvertPosFormat(this->windowPos);
     GetWindowPosCartesian();
 
-    GetVideoData();
+    // GetVideoData();
+    this->vidData = getCachedVideoData(this->vidData.videoPath);
 
     // Setup viewport
     // GetOverlap(pos.video_left, pos.video_top, pos.video_right, pos.video_bottom, this->internalTerminalGeometry, this->viewPort);
@@ -243,7 +305,8 @@ WindowData::WindowData(int windowType, std::string windowID, const WindowPos& po
         this->internalTerminalGeometry.grid_screen_y
     };
     GetWindowPosCartesian();
-    GetVideoData();
+    // GetVideoData();
+    this->vidData = getCachedVideoData(this->vidData.videoPath);
     layoutCalculation(vpos.video_left, vpos.video_top, vpos.video_right, vpos.video_bottom,
                       this->internalTerminalGeometry, this->viewPort, this->windowPos, this->vidData, this->layoutRender);
 }

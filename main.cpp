@@ -115,36 +115,55 @@ int main(int argc, char* argv[]) {
         }
     
         // Run both prodducer (in baground) and consumer
+        // Run both producer (in background) and consumer
         if (guard.is_first_instance()) {
-        pid_t pid = fork();
-        if (pid == -1) {
-            std::cerr << "fork() failed\n";
-            return -1;
-        }
+            pid_t pid = fork();
+            if (pid == -1) {
+                std::cerr << "fork() failed\n";
+                return -1;
+            }
 
-        if (pid == 0) {
-            int devnull_out = open("/dev/null", O_WRONLY);
-            int devnull_in = open("/dev/null", O_RDONLY);
-            if (devnull_out != -1) {
-                dup2(devnull_out, STDOUT_FILENO);
-                dup2(devnull_out, STDERR_FILENO);
-                close(devnull_out);
+            if (pid == 0) {
+                int devnull_out = open("/dev/null", O_WRONLY);
+                int devnull_in  = open("/dev/null", O_RDONLY);
+                if (devnull_out != -1) {
+                    dup2(devnull_out, STDOUT_FILENO);
+                    close(devnull_out);
+                }
+                if (devnull_in != -1) {
+                    dup2(devnull_in, STDIN_FILENO);
+                    close(devnull_in);
+                }
+                int log_fd = open("/tmp/hyprlarp_producer.log",
+                                  O_CREAT | O_WRONLY | O_TRUNC, 0666);
+                if (log_fd != -1) {
+                    dup2(log_fd, STDERR_FILENO);
+                    close(log_fd);
+                }
+                mainProducer();
+                _exit(0);
+            } else {
+                int fd = -1;
+                for (int i = 0; i < 100; ++i) {  // up to 10 seconds
+                    fd = shm_open("/HyprLarp-Producer", O_RDWR, 0);
+                    if (fd >= 0) {
+                        close(fd);
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+
+                if (fd < 0) {
+                    std::cerr << "Producer failed to start in time!\n";
+                    return -1;
+                }
+
+                signal(SIGCHLD, SIG_IGN);
+                mainConsumer();
             }
-            if (devnull_in != -1) {
-                dup2(devnull_in, STDIN_FILENO);
-                close(devnull_in);
-            }
-            mainProducer();
-            _exit(0);
         } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // wait for a bit to prevent racing with the producer
-            signal(SIGCHLD, SIG_IGN);
             mainConsumer();
         }
-
-    } else {
-        mainConsumer();
-    }
         
     } catch (const std::runtime_error& e) {
         std::cerr << "HyprLarp Failed to launch " << e.what() << std::endl;
