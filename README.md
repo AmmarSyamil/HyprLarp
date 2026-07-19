@@ -71,25 +71,25 @@ sudo make install
 Launch the configuration utility
 
 ```bash
-hyprlarp -s # Or HyprLarp --setting
+HyprLarp -s # Or HyprLarp --setting
 ```
 
 Start the producer manually
 
 ```bash
-hyprlarp -p # Or HyprLarp --producer
+HyprLarp -p # Or HyprLarp --producer
 ```
 
 Normal usage
 
 ```bash
-hyprlarp
+HyprLarp
 ```
 
 Display help
 
 ```bash
-hyprlarp -h # Or HyprLarp --help
+HyprLarp -h # Or HyprLarp --help
 ```
 
 ## Configuration
