@@ -143,8 +143,9 @@ int consumer::renderFrame() {
                 frame_data_cache.clear();
                 last_sequence = static_cast<uint64_t>(-1);
             }
-            refreshLayout();
         }   
+        
+        refreshLayout();
     }
 
     // check rendering status
