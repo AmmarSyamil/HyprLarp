@@ -161,7 +161,8 @@ uint8_t* createSHM(int width, int height, const std::string& SHMfilename, bool c
 
     // Get SHM size
     size_t shm_size = 0;
-    size_t stride = (width * 4 + 63) & ~63ULL;
+    // size_t stride = (width * 4 + 63) & ~63ULL;
+    size_t stride = width * 4;
     if (create_header) {
         size_t frame_size = stride * height;
         size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;

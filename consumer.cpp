@@ -17,6 +17,11 @@
 static volatile sig_atomic_t g_winch_flag = 0;
 static std::atomic<pid_t> g_terminalPidForSignal{-1};
 
+bool producerWasReplaced(ino_t oldInode) {
+    struct stat st;
+    if (stat("/dev/shm/Hyprlarp-Producer", &st) != 0) return false;
+    return st.st_ino != oldInode;
+}
 
 static void handle_winch(int) {
     g_winch_flag = 1;
@@ -81,6 +86,16 @@ bool consumer::init() {
     ProducerSHMPtr = openSHM();
     if (!ProducerSHMPtr) return false;
 
+    struct stat st;
+    int fd = shm_open("/Hyprlarp-Producer", O_RDONLY, 0);
+    if (fd != -1 && fstat(fd, &st) == 0) {
+        producerInode = st.st_ino;
+        controlHeader* hdr = (controlHeader*)ProducerSHMPtr;
+        size_t headerPage = (sizeof(controlHeader) + 4095) / 4096 * 4096;
+        producerMappedSize = headerPage + (hdr->stride * hdr->height) * RING_BUFFER_SLOTS;
+        close(fd);
+    }
+
     BaseSHMName = "HyprLarp_" + std::to_string(FindTerminalPID());
 
     terminalPid = FindTerminalPID();
@@ -108,6 +123,22 @@ int consumer::renderFrame() {
     }
 
     if (needRefresh) {
+        if (producerWasReplaced(producerInode)) {
+            if (ProducerSHMPtr) {
+                munmap(ProducerSHMPtr, producerMappedSize);
+                ProducerSHMPtr = nullptr;
+            }
+            ProducerSHMPtr = openSHM();
+            if (ProducerSHMPtr) {
+                struct stat st;
+                int fd = shm_open("/Hyprlarp-Producer", O_RDONLY, 0);
+                if (fd != -1 && fstat(fd, &st) == 0) {
+                    producerInode = st.st_ino;
+                    close(fd);
+                }
+                last_sequence = static_cast<uint64_t>(-1);  // force resync
+            }
+        }
         refreshLayout();         
     }
 
@@ -195,24 +226,59 @@ int consumer::renderFrame() {
         return 0;
     }
 
+    // const std::string frameSHMName = BaseSHMName + "_" + std::to_string(target_seq);
+    // const std::string frameB64Name = base64Converter(frameSHMName);
+
+    // hb("before_frame_shm_open");
+    // int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
+    // if (fd == -1) { logRenderFrameSkip("shm_open_failed", global_seq, target_seq); return 0; }
+    // ftruncate(fd, image_size);
+
+    // uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    // close(fd);
+    // hb("after_frame_shm_open");
+    // if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed", global_seq, target_seq); return 0; }
+
+    // std::memcpy(consSHM, frame_data_cache.data(), image_size);
+
+    // escSequence(width, height, frameB64Name, layoutRender, viewPort);
+
+    // munmap(consSHM, image_size);
+    // if (!pendingKittyUnlink.empty()) {
+    //     shm_unlink(("/" + pendingKittyUnlink).c_str());
+    // }
+    // pendingKittyUnlink = frameSHMName;
+    // last_sequence = target_seq;
+
     const std::string frameSHMName = BaseSHMName + "_" + std::to_string(target_seq);
     const std::string frameB64Name = base64Converter(frameSHMName);
 
     hb("before_frame_shm_open");
     int fd = shm_open(("/" + frameSHMName).c_str(), O_CREAT | O_RDWR, 0600);
     if (fd == -1) { logRenderFrameSkip("shm_open_failed", global_seq, target_seq); return 0; }
-    ftruncate(fd, image_size);
+    if (ftruncate(fd, image_size) == -1) {
+        close(fd);
+        logRenderFrameSkip("ftruncate_failed", global_seq, target_seq);
+        return 0;
+    }
 
-    uint8_t* consSHM = (uint8_t*)mmap(nullptr, image_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    // Write the frame data directly – avoids mmap/munmap overhead
+    ssize_t written = 0;
+    while (written < image_size) {
+        ssize_t n = write(fd, frame_data_cache.data() + written, image_size - written);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            close(fd);
+            logRenderFrameSkip("write_failed", global_seq, target_seq);
+            return 0;
+        }
+        written += n;
+    }
     close(fd);
     hb("after_frame_shm_open");
-    if (consSHM == MAP_FAILED) { logRenderFrameSkip("mmap_failed", global_seq, target_seq); return 0; }
-
-    std::memcpy(consSHM, frame_data_cache.data(), image_size);
 
     escSequence(width, height, frameB64Name, layoutRender, viewPort);
 
-    munmap(consSHM, image_size);
     if (!pendingKittyUnlink.empty()) {
         shm_unlink(("/" + pendingKittyUnlink).c_str());
     }

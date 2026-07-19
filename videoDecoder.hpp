@@ -47,7 +47,7 @@ private:
     int video_stream_idx = -1;
     int frame_counter = 0;
     bool flushing = false;
-    SwsContext* sws_ctx = nullptr;  // Reuse SWS context for all frames
+    SwsContext* sws_ctx = nullptr;  
 
     uint8_t* shm = nullptr;
 
@@ -60,7 +60,8 @@ private:
 
     void cleanupSHM() {
         if (shm && codec_ctx) {
-            size_t stride = (codec_ctx->width * 4 + 63) & ~63ULL;
+            // size_t stride = (codec_ctx->width * 4 + 63) & ~63ULL;
+            size_t stride = codec_ctx->width * 4;
             size_t header_size = (sizeof(controlHeader) + 4095) & ~4095ULL;
             size_t image_size = stride * codec_ctx->height;
             size_t total_mapping_size = header_size + image_size * RING_BUFFER_SLOTS;

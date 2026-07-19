@@ -29,6 +29,23 @@ extern "C" {
 #include "checkTerminal.hpp"
 #include "consumerRegistry.hpp"
 
+#include <atomic>
+#include <thread>
+
+
+// Global flag to signal exit
+std::atomic<bool> g_producer_should_exit{false};
+
+static void monitor_consumers() {
+    while (!g_producer_should_exit) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (!checkConsumerState()) {
+            g_producer_should_exit = true;
+            break;
+        }
+    }
+}
+
 // universal logging
 static void tlog(const char* tag, const std::string& msg) {
     static std::ofstream dbg("/tmp/hyprlarp_unified.log", std::ios::app);
@@ -36,6 +53,46 @@ static void tlog(const char* tag, const std::string& msg) {
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
     dbg << ms << " [" << tag << ":" << FindTerminalPID() << "] " << msg << std::endl;
     dbg.flush();
+}
+
+static std::string get_video_path_from_config() {
+    simdjson::dom::parser parser;
+    const char* home = std::getenv("HOME");
+    std::string filePath = std::string(home) + "/.config/HyprLarp.json";
+    auto doc = parser.load(filePath);
+    auto path = doc["videoPath"];
+    return std::string(path.value().get_string().value());
+}
+
+static std::filesystem::file_time_type get_config_mod_time() {
+    const char* home = std::getenv("HOME");
+    std::string filePath = std::string(home) + "/.config/HyprLarp.json";
+    return std::filesystem::last_write_time(filePath);
+}
+
+static bool decode_video_interruptible(VideoDecoder& decoder, VideoFrameData& frame) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    while (decoder.read_next_frame(&frame)) {
+        // Check exit flag before each frame's sleep
+        if (g_producer_should_exit.load()) return false; // interrupted
+
+        auto current_time = std::chrono::high_resolution_clock::now();
+        double elapsed = std::chrono::duration<double>(current_time - start_time).count();
+        double time_remaining = frame.timestamp_seconds - elapsed;
+        if (time_remaining > 0) {
+            // Sleep in small chunks to react to exit flag
+            auto sleep_for = std::chrono::duration<double>(time_remaining);
+            const auto chunk = std::chrono::milliseconds(50);
+            while (sleep_for > chunk) {
+                if (g_producer_should_exit.load()) return false;
+                std::this_thread::sleep_for(chunk);
+                sleep_for -= chunk;
+            }
+            std::this_thread::sleep_for(sleep_for);
+        }
+
+    }
+    return true; 
 }
 
 // Parse ~/.config/HyprLarp.json
@@ -61,7 +118,9 @@ std::string jsonParser() {
 }
 
 static void handle_signal(int) {
-    shm_unlink("/HyprLarp-Producer");
+    deleteSHM();
+    // Corrected case-sensitivity to ensure cleanup works on termination signal
+    shm_unlink("/Hyprlarp-Producer");
     _exit(1);
 }
 
@@ -141,77 +200,69 @@ int setupWorkspaceData() {
     return 0;
 };
 
-// Main enries to producer
+// Main entries to producer
 int mainProducer() {
-    std::signal(SIGINT, handle_signal);
-    std::signal(SIGTERM, handle_signal);
-    std::signal(SIGPIPE, SIG_IGN);
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+    signal(SIGPIPE, SIG_IGN);
+    // signal(SIGWINCH, handle_winch); // not needed but harmless
 
-    FILE* log = fopen("/tmp/hyprlarp_producer_start.log", "w");
-    if (log) {
-        fprintf(log, "mainProducer started at %ld\n", time(nullptr));
-        fclose(log);
-    }
+    std::string current_video_path = get_video_path_from_config();
+    auto current_mod_time = get_config_mod_time();
 
-    // WorkspaceData
     setupWorkspaceData();
 
-    // Setup VideoDecoder function
+    std::thread monitor(monitor_consumers);
+    monitor.detach(); // runs independently
+
     VideoDecoder decoder;
+    VideoFrameData frame;
 
-    // Setup, create, and populate SHM metadata
-    bool decode_open = decoder.open(jsonParser());
-
-    if (!decode_open) {
-        std::cerr << "Producer : Failed to open the decode" << std::endl;
-        throw std::runtime_error("Producer/decode : cant decode video");
-
+    // FIX: Open the video file immediately on startup!
+    if (!decoder.open(current_video_path)) {
+        std::cerr << "[Producer] Failed to open video on startup: " << current_video_path << std::endl;
         return -1;
     }
 
-    VideoFrameData frame;
-    // int desired_frame = 1; 
-
-    WorkspaceData workspaceData;
-    workspaceData.FetchWindowID();
-    publishLayout(workspaceData);
-
-    // Loop the video repeatedly
-    int loop_count = 0;
-    auto producerStartTime = std::chrono::steady_clock::now();
-    while (true) {
-
-        
-        
-        loop_count++;
-        // std::cout << "[PRODUCER] === Loop " << loop_count << " ===" << std::endl;
-        decodeVideo(decoder, frame);
-        if (!decoder.rewind()) {
-            std::cerr << "producer: failed to rewind video" << std::endl;
-            throw std::runtime_error("Producer/decode : Failed at replaying the video");
-            break;
-        }
-        
-        static auto lastCheck = std::chrono::steady_clock::now();
-        auto now = std::chrono::steady_clock::now();
-        if (now - lastCheck > std::chrono::seconds(2)) {
-            if (!(checkConsumerState())) {
-                auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - producerStartTime);
-                
-                if (uptime.count() > 10) {
-                    std::cerr << "No consumers alive, producer exiting.\n";
-                    break;
+    bool first_open = true;
+    while (!g_producer_should_exit) {
+        auto new_mod_time = get_config_mod_time();
+        if (new_mod_time != current_mod_time) {
+            std::string new_path = get_video_path_from_config();
+            if (new_path != current_video_path) {
+                decoder.close();
+                if (decoder.open(new_path)) {
+                    current_video_path = new_path;
+                    current_mod_time = new_mod_time;
+                    std::cerr << "[Producer] Switched to new video: " << new_path << std::endl;
                 } else {
-                    std::cerr << "No consumers yet, waiting... (" << uptime.count() << "s)\n";
+                    std::cerr << "[Producer] Failed to open new video, keeping old one." << std::endl;
+                    decoder.open(current_video_path);
+                    current_mod_time = new_mod_time; // avoid rechecking until next change
                 }
             } else {
-                lastCheck = now; 
+                current_mod_time = new_mod_time;
             }
+        }
+
+        bool completed = decode_video_interruptible(decoder, frame);
+        if (g_producer_should_exit) break;
+
+        if (!completed) {
+            std::cerr << "[Producer] decode_video_interruptible failed, retrying..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
+
+        if (!decoder.rewind()) {
+            std::cerr << "[Producer] Failed to rewind video, exiting." << std::endl;
+            break;
         }
     }
 
-//     std::cout << "SHM deleted" << std::endl;
+    decoder.close();      
     deleteSHM();
-
+    shm_unlink("/HyprLarp_layout");
+    std::cerr << "[Producer] Exited cleanly." << std::endl;
     return 0;
 }

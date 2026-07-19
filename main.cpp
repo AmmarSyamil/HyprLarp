@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
             } else {
                 int fd = -1;
                 for (int i = 0; i < 100; ++i) {  // up to 10 seconds
-                    fd = shm_open("/HyprLarp-Producer", O_RDWR, 0);
+                    fd = shm_open("/Hyprlarp-Producer", O_RDWR, 0);
                     if (fd >= 0) {
                         close(fd);
                         break;

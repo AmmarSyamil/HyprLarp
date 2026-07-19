@@ -19,7 +19,7 @@ int SocketReceiveConnection(std::vector<std::string>& data, std::mutex& dataMute
 
     if (sock < 0) {
         std::cerr << "Socket conection failed at making sock\n";
-        return 1;
+        return -1;
     }
 
     // Get socket path

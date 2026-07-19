@@ -19,7 +19,7 @@ zamn idk where to start
 (?). Use the WorkspaceData as parameter to must of socket function
 (V). Finish the DataType.hpp for the refresh data function
 (V). USE PID INSTEAD of tittle shit to find window ID
-16. Implement the  correct naming of the SHM
+(V). Implement the  correct naming of the SHM
 17. in getImageSHM fix the vector return error thingy.
 (V). Add implementation of custom Base64 for custum SHM name cuz im lazy rn
 (-). add implementation of the dynamic resolution video cuz im very lazy and hungry rn
@@ -32,12 +32,12 @@ zamn idk where to start
 (v). what if the config isnt yet built
 27. use std::runtime_error // clean debug // clean error logging
 (v). CHange /vp_static into /HyprLarp-Producer
-29. COmbine the layout thingy
+(V). COmbine the layout thingy
 (v). add / clean the shm
 (V). Instead of polling each frame, use the socket to detech window changes (efficientcy)
 (V). use SIGWINCH + socket2 events + slow poll
-33. performance improvement for high definition video
-34. fix the not deleting producer at close consumer
+(V). performance improvement for high definition video
+(V). fix the not deleting producer at close consumer
 
 video :
 1. use kitty, ghossty, WezTerm

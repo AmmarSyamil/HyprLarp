@@ -54,7 +54,11 @@ private:
     LayoutRender layoutRender;
     ViewportState viewPort;
 
+    ino_t producerInode = 0;
+    size_t producerMappedSize = 0;
+
     bool checkHyprlandEvent();
+    // bool producerWasReplaced();
 
 
     uint8_t* ProducerSHMPtr = nullptr; // ptr to main producer shm file
@@ -229,6 +233,7 @@ public:
         if (ProducerSHMPtr) {
             size_t total_mapped_size = static_cast<size_t>(videoHeaderSize) + static_cast<size_t>(image_size) * RING_BUFFER_SLOTS;
             exitSHM(ProducerSHMPtr, total_mapped_size);
+            munmap(ProducerSHMPtr, producerMappedSize);
             ProducerSHMPtr = nullptr;
         }
 
