@@ -1,6 +1,3 @@
-
-
-
 # HyprLarp
 A Hyprland utility that transforms multiple Kitty terminal windows into a single synchronized video canvas.
 
@@ -74,25 +71,25 @@ sudo make install
 Launch the configuration utility
 
 ```bash
-HyprLarp -s # Or HyprLarp --setting
+hyprlarp -s # Or HyprLarp --setting
 ```
 
 Start the producer manually
 
 ```bash
-HyprLarp -p # Or HyprLarp --producer
+hyprlarp -p # Or HyprLarp --producer
 ```
 
 Normal usage
 
 ```bash
-HyprLarp
+hyprlarp
 ```
 
 Display help
 
 ```bash
-HyprLarp -h # Or HyprLarp --help
+hyprlarp -h # Or HyprLarp --help
 ```
 
 ## Configuration

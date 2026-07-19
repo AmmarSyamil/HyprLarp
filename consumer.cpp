@@ -128,6 +128,7 @@ int consumer::renderFrame() {
                 munmap(ProducerSHMPtr, producerMappedSize);
                 ProducerSHMPtr = nullptr;
             }
+            getImageData();                 
             ProducerSHMPtr = openSHM();
             if (ProducerSHMPtr) {
                 struct stat st;
@@ -136,10 +137,14 @@ int consumer::renderFrame() {
                     producerInode = st.st_ino;
                     close(fd);
                 }
-                last_sequence = static_cast<uint64_t>(-1);  // force resync
+                controlHeader* hdr = (controlHeader*)ProducerSHMPtr;
+                size_t headerPage = (sizeof(controlHeader) + 4095) / 4096 * 4096;
+                producerMappedSize = headerPage + (hdr->stride * hdr->height) * RING_BUFFER_SLOTS;
+                frame_data_cache.clear();
+                last_sequence = static_cast<uint64_t>(-1);
             }
-        }
-        refreshLayout();         
+            refreshLayout();
+        }   
     }
 
     // check rendering status
