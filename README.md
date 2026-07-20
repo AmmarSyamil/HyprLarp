@@ -70,20 +70,26 @@ sudo make install
 ## Usage 
 Launch the configuration utility
 
+> [!WARNING]
+> Due to early development, higher resolution video might not reliably rendered correctly. Please use lower resolution video or the video.mp4 from this repos as an example.
+
+
+
 ```bash
 HyprLarp -s # Or HyprLarp --setting
 ```
+
+Main usage
+
+```bash
+HyprLarp
+```
+
 
 Start the producer manually
 
 ```bash
 HyprLarp -p # Or HyprLarp --producer
-```
-
-Normal usage
-
-```bash
-HyprLarp
 ```
 
 Display help
@@ -123,6 +129,7 @@ Current limitations
 - Single-workspace rendering
 - Linux only
 - Only maintained for Arch based distros
+- Performance highly degrade on higher resolution videos (Recomend using small resolution videos for better result)
 
 ---
 
